@@ -4,6 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { TodoStore } = require('./todoStore');
+const { createV1Handler } = require('./v1');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MIME = {
@@ -61,9 +62,18 @@ function serveStatic(req, res) {
   });
 }
 
+const SEED_TITLES = ['Buy milk', 'Write report', 'Call dentist'];
+
 function createApp(store = new TodoStore()) {
+  const handleV1 = createV1Handler(store, { sendJson, readBody });
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    try {
+      if (await handleV1(req, res, url)) return;
+    } catch (err) {
+      res.writeHead(413, { 'Content-Type': 'application/json', Connection: 'close' });
+      return res.end(JSON.stringify({ error: err.message }), () => req.destroy());
+    }
     const match = url.pathname.match(/^\/api\/todos(?:\/(\d+))?$/);
 
     if (!match) {
@@ -108,7 +118,11 @@ function createApp(store = new TodoStore()) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
-  const store = new TodoStore({ file: process.env.DATA_FILE });
+  const dataFile = process.env.DATA_FILE;
+  const store = new TodoStore({ file: dataFile });
+  if (store.list().length === 0 && !(dataFile && fs.existsSync(dataFile))) {
+    SEED_TITLES.forEach((title) => store.create(title));
+  }
   createApp(store).listen(port, () => {
     console.log(`Todo app running at http://localhost:${port}`);
   });

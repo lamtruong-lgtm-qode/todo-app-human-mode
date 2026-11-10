@@ -3,28 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Todo App</title>
+  <title>Todo</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <main class="container">
-    <h1>Todos</h1>
-    <form id="new-todo-form">
-      <input id="new-todo" type="text" placeholder="What needs to be done?" autocomplete="off" />
-      <button type="submit">Add</button>
-    </form>
-    <div id="error" class="error" role="alert" hidden></div>
-    <div class="filters">
-      <button data-filter="all" class="active">All</button>
-      <button data-filter="active">Active</button>
-      <button data-filter="completed">Completed</button>
-    </div>
-    <ul id="todo-list"></ul>
-    <footer>
-      <span id="count"></span>
-      <button id="clear-completed">Clear completed</button>
-    </footer>
-  </main>
+  <div class="app" data-screen="todos">
+    <header class="top" data-testid="todos.top">
+      <span class="brand">Todo</span>
+      <span class="spacer"></span>
+      <kbd data-testid="todos.topHint">Enter to add</kbd>
+      <span class="avatar" data-testid="todos.me">Ada Lovelace</span>
+    </header>
+
+    <aside class="side" data-testid="todos.side">
+      <ul class="menu" data-testid="todos.nav">
+        <li>All todos</li>
+      </ul>
+    </aside>
+
+    <main class="main" data-testid="todos.main">
+      <h1>My todos</h1>
+      <div class="stats" data-testid="todos.statsRow">
+        <span class="stat" data-testid="todos.statTotal"></span>
+      </div>
+
+      <section class="card" data-testid="todos.addCard" aria-labelledby="add-heading">
+        <h2 id="add-heading">Add a task</h2>
+        <form id="add-form" class="add-form" novalidate>
+          <input id="new-title" data-testid="todos.newTitle" type="text" maxlength="200"
+                 placeholder="What needs doing?" aria-label="New todo" autocomplete="off" />
+          <button type="submit" id="add-btn" data-testid="todos.addBtn" class="primary" disabled>Add</button>
+          <span class="spin" data-testid="todos.addSpin" role="status" aria-label="Adding" hidden></span>
+        </form>
+        <p class="field-error" id="add-error" role="alert" hidden>Could not add the todo. Try again.</p>
+      </section>
+
+      <div class="tabs" role="tablist" aria-label="Filter todos" data-testid="todos.view">
+        <button type="button" role="tab" data-filter="all" aria-selected="true">All</button>
+        <button type="button" role="tab" data-filter="active" aria-selected="false">Active</button>
+        <button type="button" role="tab" data-filter="completed" aria-selected="false">Done</button>
+      </div>
+
+      <section class="card" data-testid="todos.listCard" aria-labelledby="list-heading">
+        <h2 id="list-heading">Tasks</h2>
+        <div id="state-slot"></div>
+        <ul class="todo-list" id="todo-list" data-testid="todos.todoList"></ul>
+        <p class="field-error" id="toggle-error" data-testid="todos.toggleErrNote" role="alert" hidden>Could not update the todo. Try again.</p>
+      </section>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <div id="modal-root"></div>
   <script src="/app.js"></script>
 </body>
 </html>
