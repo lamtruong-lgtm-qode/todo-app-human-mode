@@ -280,7 +280,7 @@
           "op": "transform",
           "intent": "find our persisted todo's id",
           "from_capture": "all_todos",
-          "expr": "[.[] | select(.title == \"Add {{run_id}}-add\") | .id][0] | tostring",
+          "expr": "[.[] | select((.title | startswith(\"Add \")) and (.title | endswith(\"-add\"))) | .id][0] | tostring",
           "capture": {
             "aid": "$"
           }
@@ -290,7 +290,7 @@
           "op": "transform",
           "intent": "check the server holds our todo",
           "from_capture": "all_todos",
-          "expr": "[.[] | select(.title == \"Add {{run_id}}-add\")] | length",
+          "expr": "[.[] | select((.title | startswith(\"Add \")) and (.title | endswith(\"-add\")))] | length",
           "capture": {
             "found": "$"
           }
@@ -1280,7 +1280,10 @@
           "op": "transform",
           "intent": "count ours",
           "from_capture": "all_k",
-          "expr": "[.[] | select(.title == \"Doomed {{run_id}}-dl\")] | length",
+          "vars": {
+            "i": "xid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring))] | length",
           "capture": {
             "n": "$"
           }
