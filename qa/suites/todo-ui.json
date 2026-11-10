@@ -45,7 +45,8 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "Add"
+            "name": "Add",
+            "exact": true
           }
         },
         {
@@ -244,7 +245,8 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "Active"
+            "name": "Active",
+            "exact": true
           }
         },
         {
@@ -273,7 +275,8 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "Completed"
+            "name": "Completed",
+            "exact": true
           }
         },
         {
@@ -302,7 +305,8 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "All"
+            "name": "All",
+            "exact": true
           }
         },
         {
