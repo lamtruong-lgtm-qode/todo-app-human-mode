@@ -36,7 +36,7 @@
             "by": "placeholder",
             "name": "What needs to be done?"
           },
-          "value": "Add {{run_id}}"
+          "value": "Add {{run_id}}-add"
         },
         {
           "kind": "action",
@@ -54,7 +54,7 @@
           "intent": "the new todo appears in the list",
           "expected": {
             "kind": "text_present",
-            "text": "Add {{run_id}}"
+            "text": "Add {{run_id}}-add"
           }
         },
         {
@@ -63,7 +63,7 @@
           "intent": "exactly one row of ours is rendered",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-add",
             "count": 1
           }
         },
@@ -97,9 +97,28 @@
             "capture_name": "has_add",
             "value": "true"
           }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "find our persisted todo's id",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select(.title == \"Add {{run_id}}-add\") | .id][0]",
+          "capture": {
+            "aid": "$"
+          }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up aid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{aid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "Complete a todo: server flag set, Active/Completed filters split ours correctly",
@@ -112,11 +131,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Complete {{run_id}}'",
+          "intent": "seed 'Complete {{run_id}}-cmp'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Complete {{run_id}}"
+            "title": "Complete {{run_id}}-cmp"
           },
           "status": 201,
           "capture": {
@@ -126,11 +145,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Stay {{run_id}}'",
+          "intent": "seed 'Stay {{run_id}}-cmp'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Stay {{run_id}}"
+            "title": "Stay {{run_id}}-cmp"
           },
           "status": 201,
           "capture": {
@@ -151,7 +170,7 @@
           "intent": "both seeded todos are listed",
           "expected": {
             "kind": "text_present",
-            "text": "Complete {{run_id}}"
+            "text": "Complete {{run_id}}-cmp"
           }
         },
         {
@@ -161,7 +180,7 @@
           "target": {
             "by": "role",
             "role": "checkbox",
-            "name": "Mark \"Complete {{run_id}}\" as completed"
+            "name": "Mark \"Complete {{run_id}}-cmp\" as completed"
           }
         },
         {
@@ -234,7 +253,7 @@
           "intent": "untouched todo is in Active",
           "expected": {
             "kind": "text_present",
-            "text": "Stay {{run_id}}"
+            "text": "Stay {{run_id}}-cmp"
           }
         },
         {
@@ -243,7 +262,7 @@
           "intent": "one of ours in Active",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-cmp",
             "count": 1
           }
         },
@@ -263,7 +282,7 @@
           "intent": "completed todo is in Completed",
           "expected": {
             "kind": "text_present",
-            "text": "Complete {{run_id}}"
+            "text": "Complete {{run_id}}-cmp"
           }
         },
         {
@@ -272,7 +291,7 @@
           "intent": "one of ours in Completed",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-cmp",
             "count": 1
           }
         },
@@ -292,12 +311,29 @@
           "intent": "both of ours in All",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-cmp",
             "count": 2
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up tid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{tid}}",
+          "status": 204
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up sid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{sid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "Delete a todo: row disappears and the server forgets it",
@@ -309,11 +345,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Keep {{run_id}}'",
+          "intent": "seed 'Keep {{run_id}}-del'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Keep {{run_id}}"
+            "title": "Keep {{run_id}}-del"
           },
           "status": 201,
           "capture": {
@@ -323,11 +359,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Drop {{run_id}}'",
+          "intent": "seed 'Drop {{run_id}}-del'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Drop {{run_id}}"
+            "title": "Drop {{run_id}}-del"
           },
           "status": 201,
           "capture": {
@@ -348,7 +384,7 @@
           "intent": "seeded todo is listed",
           "expected": {
             "kind": "text_present",
-            "text": "Drop {{run_id}}"
+            "text": "Drop {{run_id}}-del"
           }
         },
         {
@@ -358,7 +394,7 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "Delete \"Drop {{run_id}}\""
+            "name": "Delete \"Drop {{run_id}}-del\""
           }
         },
         {
@@ -367,7 +403,7 @@
           "intent": "only the kept todo remains",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-del",
             "count": 1
           }
         },
@@ -377,7 +413,7 @@
           "intent": "kept todo still shown",
           "expected": {
             "kind": "text_present",
-            "text": "Keep {{run_id}}"
+            "text": "Keep {{run_id}}-del"
           }
         },
         {
@@ -406,11 +442,20 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "Keep {{run_id}}"
+            "value": "Keep {{run_id}}-del"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up kid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{kid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "Clear completed removes only completed todos",
@@ -418,18 +463,15 @@
         "happy-path",
         "clear-completed"
       ],
-      "leases": [
-        "todo:global-list"
-      ],
       "setup": [
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Done {{run_id}}'",
+          "intent": "seed 'Done {{run_id}}-clr'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Done {{run_id}}"
+            "title": "Done {{run_id}}-clr"
           },
           "status": 201,
           "capture": {
@@ -439,7 +481,7 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "complete 'Done {{run_id}}'",
+          "intent": "complete 'Done {{run_id}}-clr'",
           "method": "PATCH",
           "api_path": "/api/todos/{{cid}}",
           "body": {
@@ -450,11 +492,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Open {{run_id}}'",
+          "intent": "seed 'Open {{run_id}}-clr'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Open {{run_id}}"
+            "title": "Open {{run_id}}-clr"
           },
           "status": 201,
           "capture": {
@@ -475,7 +517,7 @@
           "intent": "both of ours listed",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-clr",
             "count": 2
           }
         },
@@ -495,7 +537,7 @@
           "intent": "only the open todo remains",
           "expected": {
             "kind": "owned_count",
-            "owned_tag": "{{run_id}}",
+            "owned_tag": "{{run_id}}-clr",
             "count": 1
           }
         },
@@ -505,7 +547,7 @@
           "intent": "open todo still shown",
           "expected": {
             "kind": "text_present",
-            "text": "Open {{run_id}}"
+            "text": "Open {{run_id}}-clr"
           }
         },
         {
@@ -534,11 +576,20 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "Open {{run_id}}"
+            "value": "Open {{run_id}}-clr"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up oid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{oid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "AC-2: double-click title, edit, Enter saves",
@@ -551,11 +602,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Before {{run_id}}'",
+          "intent": "seed 'Before {{run_id}}-edt'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Before {{run_id}}"
+            "title": "Before {{run_id}}-edt"
           },
           "status": 201,
           "capture": {
@@ -576,7 +627,7 @@
           "intent": "seeded todo is listed",
           "expected": {
             "kind": "text_present",
-            "text": "Before {{run_id}}"
+            "text": "Before {{run_id}}-edt"
           }
         },
         {
@@ -585,7 +636,7 @@
           "intent": "enter edit mode",
           "target": {
             "by": "text",
-            "name": "Before {{run_id}}"
+            "name": "Before {{run_id}}-edt"
           }
         },
         {
@@ -597,7 +648,7 @@
             "target": {
               "by": "role",
               "role": "textbox",
-              "name": "Edit title for Before {{run_id}}"
+              "name": "Edit title for Before {{run_id}}-edt"
             }
           }
         },
@@ -608,9 +659,9 @@
           "target": {
             "by": "role",
             "role": "textbox",
-            "name": "Edit title for Before {{run_id}}"
+            "name": "Edit title for Before {{run_id}}-edt"
           },
-          "value": "After {{run_id}}"
+          "value": "After {{run_id}}-edt"
         },
         {
           "kind": "action",
@@ -624,7 +675,7 @@
           "intent": "new title is displayed",
           "expected": {
             "kind": "text_present",
-            "text": "After {{run_id}}"
+            "text": "After {{run_id}}-edt"
           }
         },
         {
@@ -645,11 +696,20 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "After {{run_id}}"
+            "value": "After {{run_id}}-edt"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up eid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{eid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "AC-2: Esc cancels the edit and keeps the original title",
@@ -662,11 +722,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Original {{run_id}}'",
+          "intent": "seed 'Original {{run_id}}-esc'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Original {{run_id}}"
+            "title": "Original {{run_id}}-esc"
           },
           "status": 201,
           "capture": {
@@ -687,7 +747,7 @@
           "intent": "enter edit mode",
           "target": {
             "by": "text",
-            "name": "Original {{run_id}}"
+            "name": "Original {{run_id}}-esc"
           }
         },
         {
@@ -697,9 +757,9 @@
           "target": {
             "by": "role",
             "role": "textbox",
-            "name": "Edit title for Original {{run_id}}"
+            "name": "Edit title for Original {{run_id}}-esc"
           },
-          "value": "Discarded {{run_id}}"
+          "value": "Discarded {{run_id}}-esc"
         },
         {
           "kind": "action",
@@ -713,7 +773,7 @@
           "intent": "original title still displayed",
           "expected": {
             "kind": "text_present",
-            "text": "Original {{run_id}}"
+            "text": "Original {{run_id}}-esc"
           }
         },
         {
@@ -725,7 +785,7 @@
             "target": {
               "by": "role",
               "role": "textbox",
-              "name": "Edit title for Original {{run_id}}"
+              "name": "Edit title for Original {{run_id}}-esc"
             }
           }
         },
@@ -747,11 +807,20 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "Original {{run_id}}"
+            "value": "Original {{run_id}}-esc"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up xid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{xid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "AC-2: empty title is rejected with a message and not saved",
@@ -765,11 +834,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Keepme {{run_id}}'",
+          "intent": "seed 'Keepme {{run_id}}-emp'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Keepme {{run_id}}"
+            "title": "Keepme {{run_id}}-emp"
           },
           "status": 201,
           "capture": {
@@ -790,7 +859,7 @@
           "intent": "enter edit mode",
           "target": {
             "by": "text",
-            "name": "Keepme {{run_id}}"
+            "name": "Keepme {{run_id}}-emp"
           }
         },
         {
@@ -800,7 +869,7 @@
           "target": {
             "by": "role",
             "role": "textbox",
-            "name": "Edit title for Keepme {{run_id}}"
+            "name": "Edit title for Keepme {{run_id}}-emp"
           },
           "value": ""
         },
@@ -840,7 +909,7 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "Keepme {{run_id}}"
+            "value": "Keepme {{run_id}}-emp"
           }
         },
         {
@@ -855,11 +924,20 @@
           "intent": "original title still displayed",
           "expected": {
             "kind": "text_present",
-            "text": "Keepme {{run_id}}"
+            "text": "Keepme {{run_id}}-emp"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up mid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{mid}}",
+          "status": 204
+        }
+      ]
     },
     {
       "name": "AC-1: a failed action shows a dismissible error and the list stays intact",
@@ -871,11 +949,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Survivor {{run_id}}'",
+          "intent": "seed 'Survivor {{run_id}}-err'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Survivor {{run_id}}"
+            "title": "Survivor {{run_id}}-err"
           },
           "status": 201,
           "capture": {
@@ -885,11 +963,11 @@
         {
           "kind": "action",
           "op": "api",
-          "intent": "seed 'Ghost {{run_id}}'",
+          "intent": "seed 'Ghost {{run_id}}-err'",
           "method": "POST",
           "api_path": "/api/todos",
           "body": {
-            "title": "Ghost {{run_id}}"
+            "title": "Ghost {{run_id}}-err"
           },
           "status": 201,
           "capture": {
@@ -910,7 +988,7 @@
           "intent": "both todos rendered before the failure",
           "expected": {
             "kind": "text_present",
-            "text": "Ghost {{run_id}}"
+            "text": "Ghost {{run_id}}-err"
           }
         },
         {
@@ -928,7 +1006,7 @@
           "target": {
             "by": "role",
             "role": "button",
-            "name": "Delete \"Ghost {{run_id}}\""
+            "name": "Delete \"Ghost {{run_id}}-err\""
           }
         },
         {
@@ -949,7 +1027,7 @@
           "intent": "the unrelated todo is still listed",
           "expected": {
             "kind": "text_present",
-            "text": "Survivor {{run_id}}"
+            "text": "Survivor {{run_id}}-err"
           }
         },
         {
@@ -970,7 +1048,7 @@
           "expected": {
             "kind": "capture_equals",
             "capture_name": "t",
-            "value": "Survivor {{run_id}}"
+            "value": "Survivor {{run_id}}-err"
           }
         },
         {
@@ -1001,11 +1079,20 @@
           "intent": "list still intact after dismissal",
           "expected": {
             "kind": "text_present",
-            "text": "Survivor {{run_id}}"
+            "text": "Survivor {{run_id}}-err"
           }
         }
       ],
-      "teardown": []
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up sid",
+          "method": "DELETE",
+          "api_path": "/api/todos/{{sid}}",
+          "status": 204
+        }
+      ]
     }
   ]
 }
