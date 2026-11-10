@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
+    "build": "node -e \"process.exit(0)\"",
     "start": "node src/server.js",
     "test": "node --test"
   },
