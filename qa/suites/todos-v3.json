@@ -1,0 +1,1578 @@
+{
+  "_about": "TAH-15 v3 todos screen: Active and Done cards, add, Done/Undo, edit and delete via the row menu. Seeds and server checks use /v1/todos (string ids). The app seeds Buy milk, Write report, Call dentist, so no whole-list counts are asserted. Per-row testids are shared across rows and the lists are oldest first, so Active-row actions take the newest row (nth -1, our seeded one) and Done-row scenarios mark their todo Done via the API and act on the first Done row (nth 0). Empty and error states are not covered: the app always seeds todos and the /v1 API cannot be made to fail from a suite. Assumes serial runs (parallelism 1) and no leftover completed rows.",
+  "schema_version": "1.0.0",
+  "run_id": "todos-v3",
+  "config": {
+    "base_url": "http://localhost:3000",
+    "parallelism": 1,
+    "video": "fail",
+    "default_timeout_ms": 15000
+  },
+  "namespace": {
+    "run_id": "todos-v3",
+    "email": "qa+todos-v3@example.com",
+    "tag": "QA RUN todos-v3"
+  },
+  "scenarios": [
+    {
+      "name": "Structure: layout testids and both list containers are visible at /",
+      "tags": [
+        "structure",
+        "happy-path"
+      ],
+      "setup": [],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.top is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.top",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.grid is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.grid",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.topRow is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.topRow",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.addCard is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.addCard",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.overviewCard is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.overviewCard",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.bottomRow is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.bottomRow",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.activeCard is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.activeCard",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.doneCard is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.doneCard",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.newTitle is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.newTitle",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.addBtn is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.addBtn",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.statTotal is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.statTotal",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.todoList is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.todoList",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.doneList is visible",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.doneList",
+              "nth": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Add: button disabled when empty, row appears in Active, server holds it",
+      "tags": [
+        "add",
+        "happy-path"
+      ],
+      "setup": [],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up aid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{aid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Add is disabled while the input is empty",
+          "expected": {
+            "kind": "disabled",
+            "target": {
+              "by": "testid",
+              "name": "todos.addBtn"
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "fill",
+          "intent": "type a run-tagged title",
+          "target": {
+            "by": "testid",
+            "name": "todos.newTitle"
+          },
+          "value": "Add {{run_id}}-add"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Add is enabled once there is text",
+          "expected": {
+            "kind": "enabled",
+            "target": {
+              "by": "testid",
+              "name": "todos.addBtn"
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "submit the new todo",
+          "target": {
+            "by": "testid",
+            "name": "todos.addBtn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the new row appears",
+          "expected": {
+            "kind": "text_present",
+            "text": "Add {{run_id}}-add"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "exactly one row of ours",
+          "expected": {
+            "kind": "owned_count",
+            "owned_tag": "{{run_id}}-add",
+            "count": 1
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the row has a Done button in Active",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.toggleBtn",
+              "nth": -1
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read back the server list",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_todos": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "find our persisted todo's id",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select((.title | startswith(\"Add \")) and (.title | endswith(\"-add\"))) | .id][0] | tostring",
+          "capture": {
+            "aid": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "count ours on the server",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select((.title | startswith(\"Add \")) and (.title | endswith(\"-add\")))] | length",
+          "capture": {
+            "found": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the server holds exactly one of ours",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "found",
+            "value": "1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Done moves the row to the Done list, Undo moves it back",
+      "tags": [
+        "toggle"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Flip {{run_id}}-dn'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Flip {{run_id}}-dn"
+          },
+          "capture": {
+            "did": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up did",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{did}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our open todo is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Flip {{run_id}}-dn"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "mark our (newest open) row Done",
+          "target": {
+            "by": "testid",
+            "name": "todos.toggleBtn",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Done)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_d1": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick done of our todo",
+          "from_capture": "all_d1",
+          "vars": {
+            "i": "did"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .done][0] | tostring",
+          "capture": {
+            "d1": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server done is true",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "d1",
+            "value": "true"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done list shows the Done badge",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.doneBadge",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done row offers Undo",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.reopenBtn",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our todo is still shown",
+          "expected": {
+            "kind": "text_present",
+            "text": "Flip {{run_id}}-dn"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Undo our row",
+          "target": {
+            "by": "testid",
+            "name": "todos.reopenBtn",
+            "nth": 0
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Undo)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_d2": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick done of our todo",
+          "from_capture": "all_d2",
+          "vars": {
+            "i": "did"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .done][0] | tostring",
+          "capture": {
+            "d2": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server done is false again",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "d2",
+            "value": "false"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done list has no Undo left",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "todos.reopenBtn"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the row offers Done again",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.toggleBtn",
+              "nth": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edit from an Active row: Save updates the row and the server",
+      "tags": [
+        "edit"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Before {{run_id}}-ed'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Before {{run_id}}-ed"
+          },
+          "capture": {
+            "eid": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up eid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{eid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Edit",
+          "target": {
+            "by": "text",
+            "name": "Edit",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Edit todo dialog is open",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "role",
+              "role": "dialog",
+              "name": "Edit todo",
+              "exact": false
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the field is prefilled",
+          "expected": {
+            "kind": "value_equals",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editTitle"
+            },
+            "value": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "fill",
+          "intent": "type the new title",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editTitle"
+          },
+          "value": "After {{run_id}}-ed"
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Save",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editSave"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the dialog closed",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editTitle"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the row shows the new title",
+          "expected": {
+            "kind": "text_present",
+            "text": "After {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Save)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_t1": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick title of our todo",
+          "from_capture": "all_t1",
+          "vars": {
+            "i": "eid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .title][0] | tostring",
+          "capture": {
+            "t1": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server holds the new title",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "t1",
+            "value": "After {{run_id}}-ed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edit from an Active row: Cancel leaves the title unchanged",
+      "tags": [
+        "edit"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Before {{run_id}}-ed'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Before {{run_id}}-ed"
+          },
+          "capture": {
+            "eid": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up eid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{eid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Edit",
+          "target": {
+            "by": "text",
+            "name": "Edit",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Edit todo dialog is open",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "role",
+              "role": "dialog",
+              "name": "Edit todo",
+              "exact": false
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the field is prefilled",
+          "expected": {
+            "kind": "value_equals",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editTitle"
+            },
+            "value": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "fill",
+          "intent": "type a throwaway title",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editTitle"
+          },
+          "value": "Discarded {{run_id}}-ed"
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Cancel",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editCancel"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the dialog closed",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editTitle"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the original title is shown",
+          "expected": {
+            "kind": "text_present",
+            "text": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Cancel)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_t2": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick title of our todo",
+          "from_capture": "all_t2",
+          "vars": {
+            "i": "eid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .title][0] | tostring",
+          "capture": {
+            "t2": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server title unchanged",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "t2",
+            "value": "Before {{run_id}}-ed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Edit from an Active row: empty title shows 'Title is required', Save disabled",
+      "tags": [
+        "edit",
+        "validation"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Before {{run_id}}-ed'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Before {{run_id}}-ed"
+          },
+          "capture": {
+            "eid": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up eid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{eid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Edit",
+          "target": {
+            "by": "text",
+            "name": "Edit",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Edit todo dialog is open",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "role",
+              "role": "dialog",
+              "name": "Edit todo",
+              "exact": false
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the field is prefilled",
+          "expected": {
+            "kind": "value_equals",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editTitle"
+            },
+            "value": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "fill",
+          "intent": "clear the title",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editTitle"
+          },
+          "value": ""
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the validation message shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Title is required"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Save is disabled",
+          "expected": {
+            "kind": "disabled",
+            "target": {
+              "by": "testid",
+              "name": "editTodo.editSave"
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Cancel",
+          "target": {
+            "by": "testid",
+            "name": "editTodo.editCancel"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the original title is shown",
+          "expected": {
+            "kind": "text_present",
+            "text": "Before {{run_id}}-ed"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Cancel)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_t3": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick title of our todo",
+          "from_capture": "all_t3",
+          "vars": {
+            "i": "eid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .title][0] | tostring",
+          "capture": {
+            "t3": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server title unchanged",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "t3",
+            "value": "Before {{run_id}}-ed"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete from an Active row: 'Keep it' leaves the row in place",
+      "tags": [
+        "delete"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Doomed {{run_id}}-dl'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Doomed {{run_id}}-dl"
+          },
+          "capture": {
+            "xid": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up xid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{xid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Delete",
+          "target": {
+            "by": "text",
+            "name": "Delete",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm title shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Delete this todo?"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Keep it",
+          "target": {
+            "by": "testid",
+            "name": "confirmDelete.cancel"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm closed",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "confirmDelete.confirm"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is still shown",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Keep it)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_k": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick title of our todo",
+          "from_capture": "all_k",
+          "vars": {
+            "i": "xid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .title][0] | tostring",
+          "capture": {
+            "k": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server still holds it",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "k",
+            "value": "Doomed {{run_id}}-dl"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete from an Active row: 'Delete' removes the row, toasts, server 404s",
+      "tags": [
+        "delete"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Doomed {{run_id}}-dl'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Doomed {{run_id}}-dl"
+          },
+          "capture": {
+            "xid": "$.id"
+          }
+        }
+      ],
+      "teardown": [],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Delete",
+          "target": {
+            "by": "text",
+            "name": "Delete",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm title shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Delete this todo?"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "confirm Delete",
+          "target": {
+            "by": "testid",
+            "name": "confirmDelete.confirm"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the toast shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Todo deleted"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is gone",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "text",
+              "name": "Doomed {{run_id}}-dl",
+              "exact": true
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "backend effect: a second delete 404s",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{xid}}",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "name": "Delete from a Done row: 'Keep it' leaves the row in place",
+      "tags": [
+        "delete"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Doomed {{run_id}}-dl'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Doomed {{run_id}}-dl"
+          },
+          "capture": {
+            "yid": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark it Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{yid}}/toggle",
+          "status": 200
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up yid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{yid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.doneActs",
+            "nth": 0
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Delete",
+          "target": {
+            "by": "text",
+            "name": "Delete",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm title shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Delete this todo?"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Keep it",
+          "target": {
+            "by": "testid",
+            "name": "confirmDelete.cancel"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm closed",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "confirmDelete.confirm"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is still shown",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read the server list (after Keep it)",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_k": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "pick title of our todo",
+          "from_capture": "all_k",
+          "vars": {
+            "i": "yid"
+          },
+          "expr": "[.[] | select((.id | tostring) == ($i | tostring)) | .title][0] | tostring",
+          "capture": {
+            "k": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "server still holds it",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "k",
+            "value": "Doomed {{run_id}}-dl"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete from a Done row: 'Delete' removes the row, toasts, server 404s",
+      "tags": [
+        "delete"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Doomed {{run_id}}-dl'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Doomed {{run_id}}-dl"
+          },
+          "capture": {
+            "yid": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark it Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{yid}}/toggle",
+          "status": 200
+        }
+      ],
+      "teardown": [],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Doomed {{run_id}}-dl"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.doneActs",
+            "nth": 0
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Delete",
+          "target": {
+            "by": "text",
+            "name": "Delete",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm title shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Delete this todo?"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "confirm Delete",
+          "target": {
+            "by": "testid",
+            "name": "confirmDelete.confirm"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the toast shows",
+          "expected": {
+            "kind": "text_present",
+            "text": "Todo deleted"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is gone",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "text",
+              "name": "Doomed {{run_id}}-dl",
+              "exact": true
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "backend effect: a second delete 404s",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{yid}}",
+          "status": 404
+        }
+      ]
+    }
+  ]
+}
