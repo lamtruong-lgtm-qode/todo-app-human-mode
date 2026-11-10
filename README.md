@@ -30,4 +30,14 @@ npm test
 | DELETE | `/api/todos/:id`              | Delete one todo          |
 | DELETE | `/api/todos`                  | Clear completed todos    |
 
-Data is stored in memory and resets when the server restarts.
+By default data is stored in memory and resets when the server restarts.
+
+## Persistence
+
+Set `DATA_FILE` to a file path to keep todos across restarts:
+
+```bash
+DATA_FILE=./todos.json npm start
+```
+
+The file holds `{ "nextId": n, "todos": [...] }` and is rewritten atomically (temp file, then rename) after every change. Ids keep increasing and are never reused. A missing or corrupt file starts the store empty.

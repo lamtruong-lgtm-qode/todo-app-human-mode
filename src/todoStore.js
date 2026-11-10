@@ -1,11 +1,38 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const FILTERS = ['all', 'active', 'completed'];
 
 class TodoStore {
-  constructor() {
+  constructor({ file } = {}) {
+    this.file = file || null;
     this.todos = [];
     this.nextId = 1;
+    if (this.file) this.load();
+  }
+
+  load() {
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+    } catch {
+      return;
+    }
+    if (!data || !Array.isArray(data.todos)) return;
+    this.todos = data.todos;
+    const maxId = this.todos.reduce((m, t) => Math.max(m, Number(t.id) || 0), 0);
+    const saved = Number.isInteger(data.nextId) ? data.nextId : 1;
+    this.nextId = Math.max(saved, maxId + 1);
+  }
+
+  save() {
+    if (!this.file) return;
+    const tmp = `${this.file}.${process.pid}.tmp`;
+    fs.mkdirSync(path.dirname(this.file), { recursive: true });
+    fs.writeFileSync(tmp, JSON.stringify({ nextId: this.nextId, todos: this.todos }));
+    fs.renameSync(tmp, this.file);
   }
 
   list(filter = 'all') {
@@ -30,6 +57,7 @@ class TodoStore {
       createdAt: new Date().toISOString(),
     };
     this.todos.push(todo);
+    this.save();
     return todo;
   }
 
@@ -48,6 +76,7 @@ class TodoStore {
     if (changes.completed !== undefined) {
       todo.completed = changes.completed;
     }
+    this.save();
     return todo;
   }
 
@@ -55,12 +84,14 @@ class TodoStore {
     const index = this.todos.findIndex((t) => t.id === Number(id));
     if (index === -1) return false;
     this.todos.splice(index, 1);
+    this.save();
     return true;
   }
 
   clearCompleted() {
     const before = this.todos.length;
     this.todos = this.todos.filter((t) => !t.completed);
+    this.save();
     return before - this.todos.length;
   }
 }

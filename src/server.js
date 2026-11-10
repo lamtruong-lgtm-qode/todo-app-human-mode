@@ -108,7 +108,8 @@ function createApp(store = new TodoStore()) {
 
 if (require.main === module) {
   const port = Number(process.env.PORT) || 3000;
-  createApp().listen(port, () => {
+  const store = new TodoStore({ file: process.env.DATA_FILE });
+  createApp(store).listen(port, () => {
     console.log(`Todo app running at http://localhost:${port}`);
   });
 }
