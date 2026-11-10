@@ -1,5 +1,7 @@
 'use strict';
 
+const FILTERS = ['all', 'active', 'completed'];
+
 class TodoStore {
   constructor() {
     this.todos = [];
@@ -7,6 +9,7 @@ class TodoStore {
   }
 
   list(filter = 'all') {
+    if (!FILTERS.includes(filter)) throw new Error('Filter must be one of: all, active, completed');
     if (filter === 'active') return this.todos.filter((t) => !t.completed);
     if (filter === 'completed') return this.todos.filter((t) => t.completed);
     return [...this.todos];
@@ -33,6 +36,9 @@ class TodoStore {
   update(id, changes = {}) {
     const todo = this.get(id);
     if (!todo) return null;
+    if (changes.completed !== undefined && typeof changes.completed !== 'boolean') {
+      throw new Error('Completed must be a boolean');
+    }
     if (changes.title !== undefined) {
       if (typeof changes.title !== 'string' || changes.title.trim() === '') {
         throw new Error('Title is required');
@@ -40,7 +46,7 @@ class TodoStore {
       todo.title = changes.title.trim();
     }
     if (changes.completed !== undefined) {
-      todo.completed = Boolean(changes.completed);
+      todo.completed = changes.completed;
     }
     return todo;
   }

@@ -51,3 +51,14 @@ test('clearCompleted removes only completed todos', () => {
   assert.strictEqual(store.clearCompleted(), 1);
   assert.strictEqual(store.list().length, 1);
 });
+
+test('update rejects non-boolean completed', () => {
+  const store = new TodoStore();
+  const { id } = store.create('Task');
+  assert.throws(() => store.update(id, { completed: 'yes' }), /boolean/);
+});
+
+test('list rejects unknown filter', () => {
+  const store = new TodoStore();
+  assert.throws(() => store.list('bogus'), /Filter/);
+});

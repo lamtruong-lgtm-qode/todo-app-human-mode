@@ -12,6 +12,8 @@ const MIME = {
   '.css': 'text/css; charset=utf-8',
 };
 
+const MAX_BODY_BYTES = 100 * 1024;
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(body === undefined ? '' : JSON.stringify(body));
@@ -20,8 +22,23 @@ function sendJson(res, status, body) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (chunk) => (data += chunk));
+    let size = 0;
+    let tooLarge = false;
+    req.on('data', (chunk) => {
+      if (tooLarge) return;
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        tooLarge = true;
+        data = '';
+        const err = new Error('Payload too large');
+        err.status = 413;
+        reject(err);
+        return;
+      }
+      data += chunk;
+    });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch {
@@ -35,7 +52,8 @@ function readBody(req) {
 function serveStatic(req, res) {
   const urlPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) return sendJson(res, 403, { error: 'Forbidden' });
+  const rel = path.relative(PUBLIC_DIR, filePath);
+  if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return sendJson(res, 403, { error: 'Forbidden' });
   fs.readFile(filePath, (err, content) => {
     if (err) return sendJson(res, 404, { error: 'Not found' });
     res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' });
@@ -79,6 +97,10 @@ function createApp(store = new TodoStore()) {
       }
       return sendJson(res, 405, { error: 'Method not allowed' });
     } catch (err) {
+      if (err.status === 413) {
+        res.writeHead(413, { 'Content-Type': 'application/json', Connection: 'close' });
+        return res.end(JSON.stringify({ error: err.message }), () => req.destroy());
+      }
       return sendJson(res, 400, { error: err.message });
     }
   });
