@@ -1,0 +1,517 @@
+# Build this repo's Dockerfile and push it to GCP Artifact Registry, tagged per branch.
+#
+# Auth is Workload Identity Federation — GitHub mints an OIDC token for this workflow,
+# Google exchanges it for a short-lived impersonation of SERVICE_ACCOUNT. No JSON key
+# is ever stored in this repo. The exchange only works once the repo is bound in the
+# WIF pool; the fleet writes that binding when it provisions the project (and the
+# preflight panel's "Image build & push" area re-does it on demand).
+#
+# The four secrets below are set on the repo by the fleet at provisioning time:
+#   SERVICE_ACCOUNT             deploy SA to impersonate
+#   WORKLOAD_IDENTITY_PROVIDER  projects/<n>/locations/global/workloadIdentityPools/<p>/providers/<x>
+#   ARTIFACT_REGISTRY_REGION    registry HOST, e.g. asia-southeast1-docker.pkg.dev
+#   ARTIFACT_REGISTRY           <gcp-project>/<repository>
+#
+# ONE IMAGE PER ENVIRONMENT (2026-09-15). The `build` job is a matrix over the fleet's
+# environments (`beta`, `production` by default — the caller passes the list). Each job
+# names the GitHub Environment of the same name, so it sees that environment's Actions
+# VARIABLES — the fleet pushes Workspace settings ▸ CI vars there (build-time config such
+# as a public API URL; never a credential) — writes them into `.env.production` before the
+# build (Next.js, Vite and CRA read that file at build time) and also passes them as
+# build-args, then pushes `<repo>-<branch>-<env>`. Both images come out of ONE run, from
+# ONE commit, so the fleet can prove production's image is the same source beta soaked.
+#
+# ONE IMAGE, TWO CPUs (2026-10-22). Each environment is built twice, natively: amd64 on
+# `ubuntu-latest` and arm64 on GitHub's Arm runner, so a Mac with Apple Silicon runs the app
+# without emulating an Intel CPU (emulation is slow, and some base images crash under it). Each
+# arch pushes its own manifest, and the `publish` job joins the two into one multi-arch image
+# under the usual tags, which docker and Kubernetes resolve to the machine's own CPU. The arm64
+# build may fail without failing the run: the image is then published for amd64 alone, as
+# before, and that job's log says why. The amd64 build is required.
+#
+# The markers the fleet reads from the `publish` job's log are labelled with the environment:
+#   FLEET_IMAGE[beta]=…@sha256:…         FLEET_IMAGE[production]=…@sha256:…
+#   FLEET_BUILD_ENV[beta]=<sha256 of the variables json>   (production likewise)
+#   FLEET_VERSION=<YYYY.MM.DD>-<sha7>    (shared — one commit, one label)
+# A workflow written before this prints the single unlabelled `FLEET_IMAGE=`; the fleet
+# keeps honouring both shapes.
+name: Deploy (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environments:
+        description: 'Fleet environments to build, as a JSON list.'
+        required: false
+        default: '["beta","production"]'
+        type: string
+      # The readiness gate for a branch the fleet's Setup checklist opened (see "Smoke test the
+      # image" below). Empty `smoke_path` — what every repo that does not pass it gets — means
+      # no smoke test at all.
+      smoke_path:
+        description: 'Path the built container must answer on, on a fleet-setup-* branch. Empty = no smoke test.'
+        required: false
+        default: ''
+        type: string
+      smoke_port:
+        description: 'Port the container listens on.'
+        required: false
+        default: '3000'
+        type: string
+      smoke_accept:
+        description: 'Regex over the HTTP status codes that count as an answer.'
+        required: false
+        default: '^[23]'
+        type: string
+      smoke_postgres:
+        description: '"true" starts a throwaway Postgres and gives the container its DATABASE_URL.'
+        required: false
+        default: ''
+        type: string
+
+
+jobs:
+  build:
+    name: build (${{ matrix.env }}, ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(inputs.environments || '["beta","production"]') }}
+        arch: [amd64, arm64]
+    # arm64 is a convenience for Apple Silicon, never a reason to hold a release: a Dockerfile
+    # whose base image or native modules have no arm64 build fails here, and `publish` ships
+    # the amd64 image alone.
+    continue-on-error: ${{ matrix.arch == 'arm64' }}
+    # The GitHub Environment carrying this fleet environment's build-time variables. Named
+    # after the fleet environment, not the branch: one commit of the base branch is built for
+    # every environment, so a branch-named Environment could only ever describe one of them.
+    environment: ${{ matrix.env }}
+    permissions:
+      id-token: write
+      contents: read
+
+    # Native runners for both CPUs: building arm64 under QEMU on an Intel runner takes many
+    # times as long.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 363.0.0'
+
+      # Every `${{ }}` that feeds a script goes through `env:` and is read as a quoted shell
+      # variable — an expression inside `run:` is pasted into the script text BEFORE the shell
+      # parses it, so a value with a quote or a `$(…)` in it (a branch name is chosen by whoever
+      # can push, and a `fleet-setup-*` push starts this workflow) would run as code. A test
+      # over the rendered YAML (tests/test_setup_workflow.py) fails if one comes back.
+      - name: Configure Docker for Artifact Registry
+        env:
+          ARTIFACT_REGISTRY_REGION: ${{ secrets.ARTIFACT_REGISTRY_REGION }}
+        run: gcloud auth configure-docker "$ARTIFACT_REGISTRY_REGION" --quiet
+
+      # The image name is derived from the repo, not hardcoded, so this file is
+      # identical in every project the fleet provisions and a rename cannot leave a
+      # workflow pushing under the old name.
+      #
+      # The version label is <YYYY.MM.DD>-<short sha>, built from the COMMIT's own date
+      # rather than the build's, so rebuilding the same commit tomorrow reproduces the
+      # same label. Fleet derives the identical string in collector/ci_image.derive_version
+      - name: Derive the image name and version
+        id: img
+        run: |
+          echo "repo_name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+          echo "version=$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y.%m.%d' "$GITHUB_SHA")-$(git rev-parse --short=7 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      # This environment's build-time variables (Workspace settings ▸ CI vars, pushed by the
+      # fleet as Actions VARIABLES on the Environment named above). Written to
+      # `.env.production` — appended, so a file the repo commits keeps its own lines and the
+      # fleet's win by coming last — and emitted as build-args for a Dockerfile that declares
+      # ARGs. The stack packs' `.dockerignore` excludes `.env.*` (a developer's local env must
+      # never ride into an image), so the file is re-included for THIS build only with a
+      # trailing `!` rule in the checkout — nothing is committed. `vars` holds no secrets by
+      # construction (GitHub returns them in clear), and the hash lets the fleet say WHICH set
+      # of variables an image was built with.
+      - name: Build-time environment
+        id: benv
+        env:
+          FLEET_VARS_JSON: ${{ toJSON(vars) }}
+          FLEET_ENV: ${{ matrix.env }}
+        run: |
+          printf '%s' "$FLEET_VARS_JSON" > /tmp/fleet-vars.json
+          {
+            echo ""
+            echo "# --- fleet build-time env ($FLEET_ENV) ---"
+            jq -r 'to_entries[] | "\(.key)=\(.value)"' /tmp/fleet-vars.json
+          } >> .env.production
+          if [ -f .dockerignore ]; then printf '\n!.env.production\n' >> .dockerignore; fi
+          {
+            echo "args<<FLEET_EOF"
+            jq -r 'to_entries[] | "\(.key)=\(.value)"' /tmp/fleet-vars.json
+            echo "FLEET_ENV=$FLEET_ENV"
+            echo "BUILD_ID=$GITHUB_SHA"
+            echo "FLEET_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "hash=$(jq -cS . /tmp/fleet-vars.json | sha256sum | cut -c1-64)" >> "$GITHUB_OUTPUT"
+
+      # Tagged per BRANCH and ENVIRONMENT (…-<ref_name>-<env>:latest). k8smgr's imageRepoTmpl
+      # seeds `{prefix}-{workspace}-{ref}` and the fleet pins the repository this run's marker
+      # names, so a declaration follows the image wherever the build put it.
+      # The org's private npm registries (Orgs ▸ Package registries), written by the fleet as
+      # the ORGANISATION secret FLEET_NPMRC. Handed to the build as a BuildKit SECRET FILE, not
+      # a build-arg: an arg is recorded in the image history, a secret mount is not. Written
+      # even when the secret is unset — an empty file is a valid .npmrc, and a Dockerfile that
+      # mounts `id=npmrc` must build the same in an org that has no registries at all.
+      - name: Package registry credentials
+        env:
+          FLEET_NPMRC: ${{ secrets.FLEET_NPMRC }}
+        run: printf '%s' "$FLEET_NPMRC" > "$RUNNER_TEMP/npmrc"
+
+      # Pushed under a per-arch tag (…:<sha>-<arch>) — `publish` puts the real tags on the
+      # multi-arch image built from these. The tag keeps each half reachable for a registry
+      # cleanup policy that removes untagged images.
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/${{ matrix.arch }}
+          secret-files: |
+            npmrc=${{ runner.temp }}/npmrc
+          tags: |
+            ${{ secrets.ARTIFACT_REGISTRY_REGION }}/${{ secrets.ARTIFACT_REGISTRY }}/${{ steps.img.outputs.repo_name }}-${{ github.ref_name }}-${{ matrix.env }}:${{ github.sha }}-${{ matrix.arch }}
+          build-args: ${{ steps.benv.outputs.args }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.img.outputs.version }}
+            fleet.env=${{ matrix.env }}
+            fleet.buildenv=${{ steps.benv.outputs.hash }}
+
+      # `<digest> <build-env hash>` for `publish`, one small artifact per environment and arch.
+      - name: Record the digest
+        env:
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+          BUILD_ENV_HASH: ${{ steps.benv.outputs.hash }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/fleet-digest"
+          printf '%s %s\n' "$IMAGE_DIGEST" "$BUILD_ENV_HASH" > "$RUNNER_TEMP/fleet-digest/$ARCH"
+
+      - name: Upload the digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleet-digest-${{ matrix.env }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/fleet-digest/${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # SECURITY SCAN (FC-3975) — advisory. Two scanners over the commit's tree, both run from
+  # their own pinned images (no third-party Action, and gitleaks' Action wants a paid licence
+  # in an organisation):
+  #   * gitleaks — committed secrets (keys, tokens, passwords) in the files of this commit;
+  #   * trivy fs — known HIGH/CRITICAL vulnerabilities, with a fixed version, in the
+  #     dependencies the lockfiles pin.
+  # A finding fails THIS JOB and nothing else. `continue-on-error` keeps the run green, so
+  # `ci_built` and the image markers above are judged exactly as before; the release
+  # checklist's advisory "Security scan" row reads this job's own conclusion
+  # (collector/delivery/security_scan.py). No SARIF upload: that needs `security-events:
+  # write`, which the caller (manual-deploy.yml) does not grant, and a reusable workflow
+  # asking for more than its caller gives is refused before any job starts.
+  security-scan:
+    name: security-scan
+    continue-on-error: true
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Secrets (gitleaks)
+        id: gitleaks
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/scan:ro" ghcr.io/gitleaks/gitleaks:v8.21.2 \
+            dir /scan --redact --no-banner --exit-code 1
+
+      - name: Vulnerable dependencies (trivy)
+        id: trivy
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/scan:ro" aquasec/trivy:0.56.2 \
+            fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress /scan
+
+      # One line per scanner for a person reading the log; the job's conclusion is the verdict.
+      - name: Verdict
+        env:
+          GITLEAKS: ${{ steps.gitleaks.outcome }}
+          TRIVY: ${{ steps.trivy.outcome }}
+        run: |
+          echo "FLEET_SECURITY[secrets]=$GITLEAKS"
+          echo "FLEET_SECURITY[dependencies]=$TRIVY"
+          if [ "$GITLEAKS" != "success" ] || [ "$TRIVY" != "success" ]; then
+            echo "::warning::security scan found something (secrets: $GITLEAKS, dependencies: $TRIVY) — see the steps above"
+            exit 1
+          fi
+
+  # One multi-arch image per environment, from the build jobs' digests, under the tags every
+  # earlier version of this workflow pushed (…:<sha>, …:<version>, …:latest). This job prints
+  # the markers the fleet reads, and runs the readiness gate against the image it published.
+  # No `environment:` here: it reads no Environment variable (the build-env hash comes from the
+  # build jobs), and an Environment with protection rules would ask for its approval twice.
+  publish:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(inputs.environments || '["beta","production"]') }}
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: ${{ secrets.SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 363.0.0'
+
+      - name: Configure Docker for Artifact Registry
+        env:
+          ARTIFACT_REGISTRY_REGION: ${{ secrets.ARTIFACT_REGISTRY_REGION }}
+        run: gcloud auth configure-docker "$ARTIFACT_REGISTRY_REGION" --quiet
+
+      - name: Derive the image name and version
+        id: img
+        run: |
+          echo "repo_name=${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+          echo "version=$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y.%m.%d' "$GITHUB_SHA")-$(git rev-parse --short=7 "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
+      - name: Download the digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fleet-digest-${{ matrix.env }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/fleet-digest
+
+      # amd64 is required; arm64 joins when its build succeeded. Both halves come from the same
+      # commit and the same Environment variables, so their build-env hashes must agree.
+      - name: Publish the multi-arch image
+        id: push
+        env:
+          IMAGE_REPO: ${{ secrets.ARTIFACT_REGISTRY_REGION }}/${{ secrets.ARTIFACT_REGISTRY }}/${{ steps.img.outputs.repo_name }}-${{ github.ref_name }}-${{ matrix.env }}
+          IMAGE_SHA: ${{ github.sha }}
+          IMAGE_VERSION: ${{ steps.img.outputs.version }}
+          FLEET_ENV: ${{ matrix.env }}
+        run: |
+          dir="$RUNNER_TEMP/fleet-digest"
+          if [ -z "$IMAGE_VERSION" ]; then
+            echo "::error::no version label was derived for the image"
+            exit 1
+          fi
+          if [ ! -s "$dir/amd64" ]; then
+            echo "::error::the amd64 image for $FLEET_ENV was not built"
+            exit 1
+          fi
+          read -r amd64 hash < "$dir/amd64"
+          sources=("${IMAGE_REPO}@${amd64}")
+          if [ -s "$dir/arm64" ]; then
+            read -r arm64 arm_hash < "$dir/arm64"
+            if [ "$arm_hash" != "$hash" ]; then
+              echo "::error::the amd64 and arm64 builds of $FLEET_ENV saw different build-time variables"
+              exit 1
+            fi
+            sources+=("${IMAGE_REPO}@${arm64}")
+          else
+            echo "::warning::no arm64 image for $FLEET_ENV (its build failed): publishing amd64 only, so Apple Silicon Macs run it under emulation"
+          fi
+          docker buildx imagetools create \
+            -t "${IMAGE_REPO}:${IMAGE_SHA}" \
+            -t "${IMAGE_REPO}:${IMAGE_VERSION}" \
+            -t "${IMAGE_REPO}:latest" \
+            "${sources[@]}"
+          digest=$(docker buildx imagetools inspect "${IMAGE_REPO}:${IMAGE_SHA}" --format '{{json .Manifest}}' | jq -r .digest)
+          case "$digest" in
+            sha256:*) ;;
+            *) echo "::error::could not read back the published image's digest"; exit 1 ;;
+          esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "buildenv=$hash" >> "$GITHUB_OUTPUT"
+          echo "platforms=linux/amd64${arm64:+,linux/arm64}" >> "$GITHUB_OUTPUT"
+
+      # THE READINESS GATE (collector/delivery/repo_setup.py). The Setup checklist's Fix all
+      # opens a PR from a `fleet-setup-*` branch and merges it only once the image built from
+      # that branch has been RUN and answered its readiness path — a Dockerfile that builds but
+      # does not start is the failure this exists to catch before it lands on a trunk.
+      #
+      # Only on a `fleet-setup-*` ref and only when the caller passed `smoke_path`: a normal
+      # build of a trunk is never held up by it (an app that needs a third-party service to
+      # boot would otherwise fail every build). The container runs with `.env.example`'s
+      # filled-in values, PORT, and — when the scan found the app needs one — a throwaway
+      # Postgres. It is judged by what it prints: `FLEET_READY[<env>]=<path> <status>` on
+      # success, `FLEET_SMOKE_FAIL[<env>]=<reason>` plus the container's last log lines on
+      # failure, and a failed step stops this job before the FLEET_IMAGE marker below, so a
+      # build that does not start is never recorded as a build the fleet can ship.
+      #
+      # WHAT THE CONTAINER CAN REACH. It is the customer's image — code this workflow did not
+      # write — started on a runner that holds this job's credentials, so it is given none of
+      # them (tests/test_setup_workflow.py runs this script and asserts each line below):
+      #   * Network. Not the host's: both containers sit on a private bridge network made for
+      #     this step and the app's port is published on the runner's loopback only, which is all
+      #     the probe below needs. Host networking would hand the image the runner's localhost,
+      #     its link-local metadata endpoints and every service listening there. Containers can
+      #     still reach those through the bridge's NAT, so the two metadata addresses are
+      #     rejected in DOCKER-USER, before the image starts (the step fails if that is refused).
+      #   * Environment. `docker run` never copies the runner's environment; the only variables
+      #     the app gets are the env file's, PORT and DATABASE_URL. The env file is the repo's
+      #     own `.env.example`, filtered to `NAME=value` lines — a bare `NAME` line, like a bare
+      #     `-e NAME`, WOULD copy the runner's value, so neither is ever written. This step's own
+      #     env holds the registry coordinates (secrets) and none of it is passed on.
+      #   * Files. No volume, no docker socket, no privileged flag: the checkout (which holds the
+      #     Google credentials file) and $RUNNER_TEMP (the npmrc) are out of its reach.
+      #   * Log. What it prints is echoed on a failure, so it is fenced with `::stop-commands::`
+      #     — otherwise an image could print `::add-mask::`/`::set-output` lines and have the
+      #     runner act on them.
+      # The probe's inputs are checked here too: this workflow is reusable, and `smoke_path`
+      # ends up in the FLEET_READY line the fleet parses, so a path with a space in it could
+      # forge more of that line.
+      - name: Smoke test the image
+        if: ${{ inputs.smoke_path != '' && startsWith(github.ref_name, 'fleet-setup-') }}
+        env:
+          IMAGE_REPO: ${{ secrets.ARTIFACT_REGISTRY_REGION }}/${{ secrets.ARTIFACT_REGISTRY }}/${{ steps.img.outputs.repo_name }}-${{ github.ref_name }}-${{ matrix.env }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+          FLEET_ENV: ${{ matrix.env }}
+          SMOKE_PATH: ${{ inputs.smoke_path }}
+          SMOKE_PORT: ${{ inputs.smoke_port }}
+          SMOKE_ACCEPT: ${{ inputs.smoke_accept }}
+          SMOKE_POSTGRES: ${{ inputs.smoke_postgres }}
+        run: |
+          export LC_ALL=C
+          IMAGE="${IMAGE_REPO}@${IMAGE_DIGEST}"
+          cid=""
+          pgid=""
+          net=""
+          blocked=()
+          cleanup() {
+            if [ -n "$cid" ]; then docker rm -f "$cid" >/dev/null 2>&1; fi
+            if [ -n "$pgid" ]; then docker rm -f "$pgid" >/dev/null 2>&1; fi
+            if [ -n "$net" ]; then docker network rm "$net" >/dev/null 2>&1; fi
+            for ip in "${blocked[@]}"; do
+              sudo iptables -D DOCKER-USER -d "$ip" -j REJECT >/dev/null 2>&1
+            done
+            return 0
+          }
+          trap cleanup EXIT
+          fail() {
+            echo "FLEET_SMOKE_FAIL[$FLEET_ENV]=$1"
+            if [ -n "$cid" ]; then
+              fence="$(cat /proc/sys/kernel/random/uuid)"
+              echo "--- container log (last 40 lines) ---"
+              echo "::stop-commands::$fence"
+              docker logs --tail 40 "$cid" 2>&1
+              echo "::$fence::"
+            fi
+            exit 1
+          }
+          case "$SMOKE_PORT" in
+            ''|*[!0-9]*) fail "the smoke port is not a number" ;;
+          esac
+          if [ "${#SMOKE_PORT}" -gt 5 ] || [ "$SMOKE_PORT" -lt 1 ] || [ "$SMOKE_PORT" -gt 65535 ]; then
+            fail "the smoke port is outside 1-65535"
+          fi
+          SMOKE_PORT=$((10#$SMOKE_PORT))
+          case "$SMOKE_PATH" in
+            /*) ;;
+            *) fail "the smoke path must start with a slash" ;;
+          esac
+          case "$SMOKE_PATH" in
+            *[!A-Za-z0-9._~/%:@+=\&?-]*) fail "the smoke path holds a character a URL path should not" ;;
+          esac
+          docker pull --quiet "$IMAGE" >/dev/null || fail "could not pull the image that was just pushed"
+          net="fleet-smoke-$$"
+          docker network create "$net" >/dev/null || fail "could not create the private network for the smoke test"
+          for ip in 169.254.169.254 168.63.129.16; do
+            sudo iptables -I DOCKER-USER -d "$ip" -j REJECT \
+              || fail "could not block the runner's metadata endpoint $ip from the container"
+            blocked+=("$ip")
+          done
+          envfile="$RUNNER_TEMP/smoke.env"
+          : > "$envfile"
+          if [ -f .env.example ]; then
+            grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' .env.example \
+              | grep -v -E '^(PORT|DATABASE_URL)=' \
+              | sed -E "s/^([A-Za-z_][A-Za-z0-9_]*)=[\"'](.*)[\"']\$/\1=\2/" >> "$envfile" || true
+          fi
+          dburl=""
+          if [ "$SMOKE_POSTGRES" = "true" ]; then
+            pgname="fleet-smoke-db-$$"
+            pgpass="smoke-$RANDOM$RANDOM$RANDOM"
+            pgid=$(docker run -d --network "$net" --name "$pgname" -e POSTGRES_PASSWORD="$pgpass" -e POSTGRES_DB=app postgres:16-alpine) \
+              || fail "could not start the throwaway Postgres"
+            tries=0
+            until docker exec "$pgid" pg_isready -U postgres -d app >/dev/null 2>&1; do
+              tries=$((tries + 1))
+              if [ "$tries" -ge 30 ]; then fail "the throwaway Postgres did not start"; fi
+              sleep 1
+            done
+            dburl="postgresql://postgres:${pgpass}@${pgname}:5432/app"
+          fi
+          args=(--network "$net" -p "127.0.0.1:${SMOKE_PORT}:${SMOKE_PORT}" --env-file "$envfile" -e "PORT=$SMOKE_PORT")
+          if [ -n "$dburl" ]; then args+=(-e "DATABASE_URL=$dburl"); fi
+          cid=$(docker run -d "${args[@]}" "$IMAGE") || fail "docker could not start the image"
+          deadline=$((SECONDS + ${SMOKE_TIMEOUT:-90}))
+          code=000
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            running=$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null || echo false)
+            if [ "$running" != "true" ]; then fail "the container exited before it answered on port $SMOKE_PORT"; fi
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${SMOKE_PORT}${SMOKE_PATH}" || true)
+            if printf '%s' "$code" | grep -Eq -e "$SMOKE_ACCEPT"; then
+              echo "FLEET_READY[$FLEET_ENV]=$SMOKE_PATH $code"
+              exit 0
+            fi
+            sleep 2
+          done
+          fail "no healthy answer on port $SMOKE_PORT at $SMOKE_PATH within ${SMOKE_TIMEOUT:-90} s (last HTTP status $code)"
+
+      # Three markers, read by collector/ci_poller from this job's log (the per-arch build jobs
+      # print none). The DIGEST is what
+      # Fleet pins and deploys — a version tag is mutable, and an approval of a mutable
+      # reference is not an approval. FLEET_VERSION only gives that digest a name a person
+      # can read; nothing pins to it. FLEET_BUILD_ENV names the variables the image was built
+      # with. Each on its own line, and free of any secret, so GitHub's log masking cannot
+      # turn the label into "***".
+      - name: Output fleet image ref
+        env:
+          FLEET_ENV: ${{ matrix.env }}
+          REGISTRY_HOST: ${{ secrets.ARTIFACT_REGISTRY_REGION }}
+          REGISTRY_PATH: ${{ secrets.ARTIFACT_REGISTRY }}
+          REPO_NAME: ${{ steps.img.outputs.repo_name }}
+          REF_NAME: ${{ github.ref_name }}
+          IMAGE_DIGEST: ${{ steps.push.outputs.digest }}
+          BUILD_ENV_HASH: ${{ steps.push.outputs.buildenv }}
+          IMAGE_VERSION: ${{ steps.img.outputs.version }}
+        run: |
+          echo "FLEET_IMAGE[$FLEET_ENV]=${REGISTRY_HOST}/${REGISTRY_PATH}/${REPO_NAME}-${REF_NAME}-${FLEET_ENV}@${IMAGE_DIGEST}"
+          echo "FLEET_BUILD_ENV[$FLEET_ENV]=$BUILD_ENV_HASH"
+          echo "FLEET_VERSION=$IMAGE_VERSION"
