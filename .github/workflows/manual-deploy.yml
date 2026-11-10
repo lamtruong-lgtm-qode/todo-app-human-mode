@@ -20,8 +20,6 @@ name: CI (manual)
 # With no inputs declared, GitHub refuses such a dispatch outright.
 on:
   workflow_dispatch:
-  push:
-    branches: ['fleet-setup-78fda733']
 
 jobs:
   deploy:
