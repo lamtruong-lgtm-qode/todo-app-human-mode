@@ -26,3 +26,6 @@ li span { flex: 1; }
 li.completed span { text-decoration: line-through; color: #a1a1aa; }
 .delete { border: none; color: #ef4444; font-size: 18px; }
 footer { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; color: #71717a; }
+.error { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 12px 0 0; padding: 8px 12px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px; }
+.error[hidden] { display: none; }
+li input.edit { flex: 1; padding: 4px 8px; font-size: 16px; border: 1px solid #d4d4d8; border-radius: 6px; }
