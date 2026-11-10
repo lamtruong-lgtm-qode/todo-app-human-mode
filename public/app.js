@@ -3,19 +3,20 @@
 const API = '/v1/todos';
 
 const listEl = document.getElementById('todo-list');
-const stateSlot = document.getElementById('state-slot');
-const statTotal = document.querySelector('[data-testid="todos.statTotal"]');
+const doneListEl = document.getElementById('done-list');
+const activeState = document.getElementById('active-state');
+const doneState = document.getElementById('done-state');
+const statValue = document.getElementById('stat-value');
 const addForm = document.getElementById('add-form');
 const newTitle = document.getElementById('new-title');
 const addBtn = document.getElementById('add-btn');
 const addSpin = document.querySelector('[data-testid="todos.addSpin"]');
 const addError = document.getElementById('add-error');
 const toggleError = document.getElementById('toggle-error');
+const delError = document.getElementById('del-error');
 const toasts = document.getElementById('toasts');
 const modalRoot = document.getElementById('modal-root');
-const tabs = document.querySelectorAll('.tabs [role="tab"]');
 
-let currentFilter = 'all';
 let loadSeq = 0;
 let openMenu = null;
 
@@ -61,65 +62,69 @@ function closeMenu() {
   openMenu = null;
 }
 
-function renderState(kind, todosCount) {
-  stateSlot.innerHTML = '';
+// Each card has its own state slot; n is 1 for Active and 2 for Done.
+const CARDS = [
+  { n: 1, slot: activeState, loadingLabel: 'Loading todos', emptyId: 'todos.emptyMsg', emptyText: 'Nothing to do yet. Add your first todo.', errNote: 'todos.listErrNote', retry: 'todos.listRetry', skel: 'todos.listSkel' },
+  { n: 2, slot: doneState, loadingLabel: 'Loading finished todos', emptyId: 'todos.doneEmpty', emptyText: 'Finished todos show up here.', errNote: 'todos.doneErrNote', retry: 'todos.doneRetry', skel: 'todos.doneSkel' },
+];
+
+function renderState(card, kind) {
+  card.slot.innerHTML = '';
   if (kind === 'loading') {
-    const skel = el('div', { testid: 'todos.listSkel', 'aria-hidden': 'true', class: 'skeleton' });
+    const skel = el('div', { testid: card.skel, 'aria-hidden': 'true', class: 'skeleton' });
     for (let i = 0; i < 3; i += 1) skel.appendChild(el('div', { class: 'skel-row' }));
-    stateSlot.appendChild(el('div', { testid: 'todos.loading-1', role: 'status', 'aria-label': 'Loading todos' }, skel));
+    card.slot.appendChild(el('div', { testid: `todos.loading-${card.n}`, role: 'status', 'aria-label': card.loadingLabel }, skel));
   } else if (kind === 'error') {
-    const retry = el('button', { type: 'button', testid: 'todos.listRetry', text: 'Retry' });
+    const retry = el('button', { type: 'button', testid: card.retry, text: 'Retry' });
     retry.addEventListener('click', load);
-    stateSlot.appendChild(
-      el('div', { testid: 'todos.error-1', class: 'state error-state' },
-        el('p', { testid: 'todos.listErrNote', role: 'alert', text: 'Could not load your todos.' }),
+    card.slot.appendChild(
+      el('div', { testid: `todos.error-${card.n}`, class: 'state error-state' },
+        el('p', { testid: card.errNote, role: 'alert', text: 'Could not load your todos' }),
         retry),
     );
-  } else if (kind === 'empty' && todosCount === 0) {
-    stateSlot.appendChild(
-      el('div', { testid: 'todos.empty-1', class: 'state' },
-        el('p', { testid: 'todos.emptyMsg', text: 'Nothing to do yet. Add your first todo above.' })),
+  } else if (kind === 'empty') {
+    card.slot.appendChild(
+      el('div', { testid: `todos.empty-${card.n}`, class: 'state' },
+        el('p', { testid: card.emptyId, text: card.emptyText })),
     );
   }
 }
 
-// An empty list keeps a presentational shell so the list structure is always present.
-function renderShell() {
-  listEl.appendChild(
-    el('li', { class: 'line shell', 'aria-hidden': 'true' },
-      el('span', { testid: 'todos.rowActs', class: 'row-acts shell-acts' })),
-  );
-}
-
 function renderRow(todo) {
   const id = todo.id;
-  const badge = todo.done
-    ? el('span', { testid: 'todos.stDone', class: 'badge done', text: 'Done' })
-    : el('span', { testid: 'todos.stOpen', class: 'badge open', text: 'Open' });
-  const title = el('span', { testid: 'todos.rowTitle', class: 'row-title', text: todo.title });
+  const done = todo.done;
+  const title = el('span', { testid: done ? 'todos.doneTitle' : 'todos.rowTitle', class: 'row-title', text: todo.title });
 
-  const toggle = todo.done
+  const toggle = done
     ? el('button', { type: 'button', testid: 'todos.reopenBtn', text: 'Undo', 'aria-label': `Undo "${todo.title}"` })
     : el('button', { type: 'button', testid: 'todos.toggleBtn', text: 'Done', 'aria-label': `Mark "${todo.title}" as done` });
   toggle.addEventListener('click', () => toggleTodo(todo));
 
   const menuBtn = el('button', {
     type: 'button',
+    testid: done ? 'todos.doneActs' : 'todos.rowActs',
     class: 'row-menu-btn',
     'aria-label': 'Row actions',
     'aria-haspopup': 'menu',
     'aria-expanded': 'false',
     'data-todo-id': id,
-    text: '⋯',
+    text: '\u22ef',
   });
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleMenu(menuBtn, todo);
   });
-  const acts = el('span', { testid: 'todos.rowActs', class: 'row-acts' }, menuBtn);
+  const acts = el('span', { class: 'row-acts' }, menuBtn);
 
-  return el('li', { testid: `todos.line-${id}`, class: `line${todo.done ? ' is-done' : ''}`, 'data-todo-id': id },
-    badge, title, toggle, acts);
+  const children = done
+    ? [el('span', { testid: 'todos.doneBadge', class: 'badge done', text: 'Done' }), title, toggle, acts]
+    : [title, toggle, acts];
+  return el('li', {
+    testid: done ? 'todos.doneLine' : 'todos.line',
+    class: `line${done ? ' is-done' : ''}`,
+    'aria-label': todo.title,
+    'data-todo-id': id,
+  }, ...children);
 }
 
 function toggleMenu(button, todo) {
@@ -127,7 +132,7 @@ function toggleMenu(button, todo) {
   closeMenu();
   const edit = el('button', { type: 'button', role: 'menuitem', text: 'Edit' });
   const del = el('button', { type: 'button', role: 'menuitem', text: 'Delete' });
-  const menu = el('div', { role: 'menu', class: 'row-menu', 'aria-label': 'Row actions' }, edit, del);
+  const menu = el('div', { role: 'menu', class: 'row-menu', 'aria-label': 'Row actions' }, ...(todo.done ? [del] : [edit, del]));
   edit.addEventListener('click', () => {
     closeMenu();
     openEditModal(todo, button);
@@ -144,25 +149,29 @@ function toggleMenu(button, todo) {
 
 async function load() {
   const seq = ++loadSeq;
-  renderState('loading');
-  const res = await api(`${API}?filter=${currentFilter}`);
-  if (seq !== loadSeq) return;
   listEl.innerHTML = '';
+  doneListEl.innerHTML = '';
+  for (const card of CARDS) renderState(card, 'loading');
+  const res = await api(`${API}?filter=all`);
+  if (seq !== loadSeq) return;
   if (!res.ok || !Array.isArray(res.data)) {
-    renderState('error');
-    statTotal.textContent = '';
-    renderShell();
+    for (const card of CARDS) renderState(card, 'error');
+    statValue.textContent = '0';
     return;
   }
   const todos = res.data;
-  renderState('empty', todos.length);
-  statTotal.textContent = `Total: ${todos.length}`;
-  if (todos.length === 0) renderShell();
-  for (const todo of todos) listEl.appendChild(renderRow(todo));
+  const active = todos.filter((t) => !t.done);
+  const done = todos.filter((t) => t.done);
+  renderState(CARDS[0], active.length === 0 ? 'empty' : 'none');
+  renderState(CARDS[1], done.length === 0 ? 'empty' : 'none');
+  statValue.textContent = String(todos.length);
+  for (const todo of active) listEl.appendChild(renderRow(todo));
+  for (const todo of done) doneListEl.appendChild(renderRow(todo));
 }
 
 async function toggleTodo(todo) {
   toggleError.hidden = true;
+  delError.hidden = true;
   const res = await api(`${API}/${todo.id}/toggle`, { method: 'POST' });
   if (!res.ok) {
     toggleError.hidden = false;
@@ -204,15 +213,6 @@ addForm.addEventListener('submit', async (e) => {
   load();
 });
 
-tabs.forEach((tab) => {
-  tab.addEventListener('click', () => {
-    tabs.forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-    currentFilter = tab.dataset.filter;
-    toggleError.hidden = true;
-    load();
-  });
-});
-
 document.addEventListener('click', closeMenu);
 
 // ---- modals -------------------------------------------------------------
@@ -234,14 +234,14 @@ function closeModal() {
   target.focus();
 }
 
-function openModal({ prefix, titleText, body, buttons, opener, todoId, initialFocus }) {
+function openModal({ prefix, titleText, body, buttons, opener, todoId, initialFocus, actionsTestid }) {
   closeModal();
   closeMenu();
   const titleId = `${prefix}-title`;
   const dialog = el('div', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, testid: `${prefix}.dialog`, class: 'modal' },
     el('h2', { id: titleId, text: titleText }),
     body,
-    el('div', { class: 'modal-actions' }, ...buttons));
+    el('div', actionsTestid ? { class: 'modal-actions', testid: actionsTestid } : { class: 'modal-actions' }, ...buttons));
   const backdrop = el('div', { class: 'backdrop' }, dialog);
   backdrop.addEventListener('mousedown', (e) => {
     if (e.target === backdrop) closeModal();
@@ -289,7 +289,7 @@ function openEditModal(todo, opener) {
   });
   input.value = todo.title;
   const err = el('p', { class: 'field-error', id: 'edit-title-err', text: 'Title is required', hidden: '' });
-  const saveErr = el('p', { class: 'field-error', testid: 'editTodo.saveErrNote', role: 'alert', text: 'Could not save the todo. Try again.', hidden: '' });
+  const saveErr = el('p', { class: 'field-error', testid: 'editTodo.saveErrNote', role: 'alert', text: 'Could not save. Try again.', hidden: '' });
   const spin = el('span', { class: 'spin', testid: 'editTodo.saveSpin', role: 'status', 'aria-label': 'Saving', hidden: '' });
   const cancel = el('button', { type: 'button', testid: 'editTodo.editCancel', text: 'Cancel' });
   const save = el('button', { type: 'button', testid: 'editTodo.editSave', class: 'primary', text: 'Save' });
@@ -331,26 +331,24 @@ function openEditModal(todo, opener) {
   cancel.addEventListener('click', closeModal);
   save.addEventListener('click', submit);
 
-  openModal({ prefix: 'editTodo', titleText: 'Edit todo', body, buttons: [spin, cancel, save], opener, todoId: todo.id, initialFocus: input });
+  openModal({ prefix: 'editTodo', titleText: 'Edit todo', body, buttons: [el('span', { class: 'spacer', testid: 'editTodo.editPush' }), spin, cancel, save], actionsTestid: 'editTodo.editActions', opener, todoId: todo.id, initialFocus: input });
   input.select();
   sync();
 }
 
 function openDeleteModal(todo, opener) {
-  const delErr = el('p', { class: 'field-error', testid: 'todos.delErrNote', role: 'alert', text: 'Could not delete the todo. Try again.', hidden: '' });
   const body = el('div', { class: 'modal-body' },
-    el('p', { testid: 'confirmDelete.cdBody', text: 'This cannot be undone.' }),
-    delErr);
+    el('p', { testid: 'confirmDelete.cdBody', text: 'This cannot be undone.' }));
   const cancel = el('button', { type: 'button', testid: 'confirmDelete.cancel', text: 'Keep it' });
   const confirm = el('button', { type: 'button', testid: 'confirmDelete.confirm', class: 'danger', text: 'Delete' });
   cancel.addEventListener('click', closeModal);
   confirm.addEventListener('click', async () => {
     confirm.disabled = true;
-    delErr.hidden = true;
+    delError.hidden = true;
     const res = await api(`${API}/${todo.id}`, { method: 'DELETE' });
     if (!res.ok) {
-      delErr.hidden = false;
-      confirm.disabled = false;
+      closeModal();
+      delError.hidden = false;
       return;
     }
     closeModal();

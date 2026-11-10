@@ -10,47 +10,53 @@
   <div class="app" data-screen="todos">
     <header class="top" data-testid="todos.top">
       <span class="brand">Todo</span>
-      <span class="spacer"></span>
+      <span class="spacer" data-testid="todos.topPush"></span>
       <kbd data-testid="todos.topHint">Enter to add</kbd>
       <span class="avatar" data-testid="todos.me">Ada Lovelace</span>
     </header>
 
-    <aside class="side" data-testid="todos.side">
-      <ul class="menu" role="list" data-testid="todos.nav">
-        <li role="listitem" aria-label="All todos">All todos</li>
-      </ul>
-    </aside>
+    <div class="grid" data-testid="todos.grid">
+      <div class="row" data-testid="todos.topRow">
+        <section class="card" data-testid="todos.addCard" aria-labelledby="add-heading">
+          <h2 id="add-heading">Add a task</h2>
+          <form id="add-form" class="add-form" novalidate>
+            <input id="new-title" data-testid="todos.newTitle" type="text" maxlength="200"
+                   placeholder="What needs doing?" aria-label="New todo" autocomplete="off" />
+            <div class="add-row" data-testid="todos.addRow">
+              <span class="spacer" data-testid="todos.addPush"></span>
+              <span class="spin" data-testid="todos.addSpin" role="status" aria-label="Adding" hidden></span>
+              <button type="submit" id="add-btn" data-testid="todos.addBtn" class="primary" disabled>Add</button>
+            </div>
+          </form>
+          <p class="field-error" id="add-error" data-testid="todos.addErr" role="alert" hidden>Could not add the todo. Try again.</p>
+        </section>
 
-    <main class="main" data-testid="todos.main">
-      <h1>My todos</h1>
-      <div class="stats" data-testid="todos.statsRow">
-        <span class="stat" data-testid="todos.statTotal"></span>
+        <section class="card" data-testid="todos.overviewCard" aria-labelledby="overview-heading">
+          <h2 id="overview-heading">Overview</h2>
+          <div class="stat" data-testid="todos.statTotal">
+            <span class="stat-label">Tasks</span>
+            <span class="stat-value" id="stat-value">0</span>
+            <span class="stat-hint">all todos</span>
+          </div>
+          <p class="field-error" id="toggle-error" data-testid="todos.toggleErrNote" role="alert" hidden>Could not update the todo. Try again.</p>
+          <p class="field-error" id="del-error" data-testid="todos.delErrNote" role="alert" hidden>Could not delete the todo. Try again.</p>
+        </section>
       </div>
 
-      <section class="card" data-testid="todos.addCard" aria-labelledby="add-heading">
-        <h2 id="add-heading">Add a task</h2>
-        <form id="add-form" class="add-form" novalidate>
-          <input id="new-title" data-testid="todos.newTitle" type="text" maxlength="200"
-                 placeholder="What needs doing?" aria-label="New todo" autocomplete="off" />
-          <button type="submit" id="add-btn" data-testid="todos.addBtn" class="primary" disabled>Add</button>
-          <span class="spin" data-testid="todos.addSpin" role="status" aria-label="Adding" hidden></span>
-        </form>
-        <p class="field-error" id="add-error" role="alert" hidden>Could not add the todo. Try again.</p>
-      </section>
+      <div class="row" data-testid="todos.bottomRow">
+        <section class="card" data-testid="todos.activeCard" aria-labelledby="active-heading">
+          <h2 id="active-heading">Active</h2>
+          <div id="active-state"></div>
+          <ul class="todo-list" id="todo-list" data-testid="todos.todoList"></ul>
+        </section>
 
-      <div class="tabs" role="tablist" aria-label="Filter todos" data-testid="todos.view">
-        <button type="button" role="tab" data-filter="all" aria-selected="true">All</button>
-        <button type="button" role="tab" data-filter="active" aria-selected="false">Active</button>
-        <button type="button" role="tab" data-filter="completed" aria-selected="false">Done</button>
+        <section class="card" data-testid="todos.doneCard" aria-labelledby="done-heading">
+          <h2 id="done-heading">Done</h2>
+          <div id="done-state"></div>
+          <ul class="todo-list" id="done-list" data-testid="todos.doneList"></ul>
+        </section>
       </div>
-
-      <section class="card" data-testid="todos.listCard" aria-labelledby="list-heading">
-        <h2 id="list-heading">Tasks</h2>
-        <div id="state-slot"></div>
-        <ul class="todo-list" id="todo-list" data-testid="todos.todoList"></ul>
-        <p class="field-error" id="toggle-error" data-testid="todos.toggleErrNote" role="alert" hidden>Could not update the todo. Try again.</p>
-      </section>
-    </main>
+    </div>
   </div>
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
