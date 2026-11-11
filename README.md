@@ -19,7 +19,40 @@ npm start
 npm test
 ```
 
-## REST API
+## REST API v1
+
+Base path `/v1/todos`. Requests and responses are JSON.
+
+| Method | Path                                          | Description                                        | Success |
+| ------ | --------------------------------------------- | -------------------------------------------------- | ------- |
+| GET    | `/v1/todos?filter=all\|active\|completed`     | List todos; `filter` defaults to `all`             | 200     |
+| POST   | `/v1/todos`                                   | Create `{ "title": "..." }`                        | 201     |
+| PATCH  | `/v1/todos/:id`                               | Rename `{ "title": "..." }`                        | 200     |
+| POST   | `/v1/todos/:id/toggle`                        | Flip `done` on one todo                            | 200     |
+| DELETE | `/v1/todos/:id`                               | Delete one todo                                    | 204, no body |
+
+A todo looks like:
+
+```json
+{ "id": "1", "title": "Buy milk", "done": false, "createdAt": "..." }
+```
+
+`id` is a string, `done` is a boolean and `createdAt` is the creation timestamp stored for the todo.
+
+The title is trimmed and must be 1-200 characters long. It is required on create and on PATCH.
+
+Errors are returned as `{ "error": "message" }` with one of these status codes:
+
+| Status | Meaning |
+| ------ | ------- |
+| 400    | Invalid title (not a string, empty or longer than 200 characters), unknown `filter` value, or an unreadable request body |
+| 404    | No todo with that id (PATCH, toggle, DELETE) |
+| 405    | Method not supported on that path, for example `PUT /v1/todos/:id` or `GET /v1/todos/:id/toggle` |
+| 413    | Request body too large |
+
+## REST API (legacy)
+
+The `/api/todos` endpoints below are legacy. They keep working for existing clients; use `/v1/todos` for new code.
 
 | Method | Path                          | Description              |
 | ------ | ----------------------------- | ------------------------ |
