@@ -1,0 +1,753 @@
+{
+  "_about": "TAH2-4 Clear done: Done-card button, confirm modal (focus trap and Escape come from the shared modal), toast, counter and /v1 DELETE /v1/todos. Setup clears any done todos first, so Cleared 2 todos is exact; assumes serial runs (parallelism 1). The failure scenario drives the real request by going offline before confirming, then restores the network.",
+  "schema_version": "1.0.0",
+  "run_id": "clear-done",
+  "config": {
+    "base_url": "http://localhost:3000",
+    "parallelism": 1,
+    "video": "fail",
+    "default_timeout_ms": 15000
+  },
+  "namespace": {
+    "run_id": "clear-done",
+    "email": "qa+clear-done@example.com",
+    "tag": "QA RUN clear-done"
+  },
+  "scenarios": [
+    {
+      "name": "Hidden state: no Clear done button while nothing is done",
+      "tags": [
+        "hidden-state"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clear any done todos left on the server",
+          "method": "DELETE",
+          "api_path": "/v1/todos",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Open {{run_id}}-hid'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Open {{run_id}}-hid"
+          },
+          "capture": {
+            "hid": "$.id"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Active row shows",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.line",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Clear done is not offered",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearDoneBtn"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done card has no rows",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "todos.doneLine"
+            }
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up hid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{hid}}"
+        }
+      ]
+    },
+    {
+      "name": "Cancel and Escape close the confirm modal and keep the done todos",
+      "tags": [
+        "cancel",
+        "modal"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clear any done todos left on the server",
+          "method": "DELETE",
+          "api_path": "/v1/todos",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Keep {{run_id}}-cn'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Keep {{run_id}}-cn"
+          },
+          "capture": {
+            "cid": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark 'Keep {{run_id}}-cn' Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{cid}}/toggle",
+          "status": 200
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Clear done is offered",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearDoneBtn",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done card holds our todo",
+          "expected": {
+            "kind": "text_present",
+            "text": "Keep {{run_id}}-cn"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the confirm modal",
+          "target": {
+            "by": "testid",
+            "name": "todos.clearDoneBtn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm dialog opens",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Keep them",
+          "target": {
+            "by": "testid",
+            "name": "clearDone.cancel"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the dialog closes",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our todo is still listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Keep {{run_id}}-cn"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "reopen the confirm modal",
+          "target": {
+            "by": "testid",
+            "name": "todos.clearDoneBtn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the dialog is open again",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "press",
+          "intent": "press Escape",
+          "key": "Escape"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Escape closes the dialog",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our todo is still listed after Escape",
+          "expected": {
+            "kind": "text_present",
+            "text": "Keep {{run_id}}-cn"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read back the server list",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_todos": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "count our todos on the server",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select(.title | contains(\"{{run_id}}\"))] | length",
+          "capture": {
+            "kept": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the server still holds our todo",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "kept",
+            "value": "1"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up cid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{cid}}"
+        }
+      ]
+    },
+    {
+      "name": "Confirm clears every done todo, toasts, updates the counter and leaves Active alone",
+      "tags": [
+        "happy-path"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clear any done todos left on the server",
+          "method": "DELETE",
+          "api_path": "/v1/todos",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Gone {{run_id}}-a'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Gone {{run_id}}-a"
+          },
+          "capture": {
+            "da": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark 'Gone {{run_id}}-a' Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{da}}/toggle",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Gone {{run_id}}-b'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Gone {{run_id}}-b"
+          },
+          "capture": {
+            "db": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark 'Gone {{run_id}}-b' Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{db}}/toggle",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Stay {{run_id}}-act'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Stay {{run_id}}-act"
+          },
+          "capture": {
+            "act": "$.id"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "both done todos are listed",
+          "expected": {
+            "kind": "owned_count",
+            "owned_tag": "Gone {{run_id}}",
+            "count": 2
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the counter shows 3 tasks",
+          "expected": {
+            "kind": "text_present",
+            "text": "3"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the confirm modal",
+          "target": {
+            "by": "testid",
+            "name": "todos.clearDoneBtn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm dialog opens",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "confirm",
+          "target": {
+            "by": "testid",
+            "name": "clearDone.confirm"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the toast reports the count",
+          "expected": {
+            "kind": "text_present",
+            "text": "Cleared 2 todos"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the dialog closes",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Clear done disappears with no done todos",
+          "expected": {
+            "kind": "hidden",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearDoneBtn"
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "no done todo of ours is left",
+          "expected": {
+            "kind": "owned_count",
+            "owned_tag": "Gone {{run_id}}",
+            "count": 0
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Active todo is unchanged",
+          "expected": {
+            "kind": "text_present",
+            "text": "Stay {{run_id}}-act"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the Done card shows its empty state",
+          "expected": {
+            "kind": "text_present",
+            "text": "Finished todos show up here."
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read back the server list",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_todos": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "count our done todos on the server",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select((.done == true) and (.title | contains(\"{{run_id}}\")))] | length",
+          "capture": {
+            "gone": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the server removed the done todos",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "gone",
+            "value": "0"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read back the server list",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_todos": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "count our active todos on the server",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select((.done == false) and (.title | contains(\"{{run_id}}\")))] | length",
+          "capture": {
+            "left": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the server kept the active todo",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "left",
+            "value": "1"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up act",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{act}}"
+        }
+      ]
+    },
+    {
+      "name": "Failure: when the request fails the UI shows an error and keeps the todos",
+      "tags": [
+        "failure"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clear any done todos left on the server",
+          "method": "DELETE",
+          "api_path": "/v1/todos",
+          "status": 200
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Fail {{run_id}}-ff'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Fail {{run_id}}-ff"
+          },
+          "capture": {
+            "fid": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark 'Fail {{run_id}}-ff' Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{fid}}/toggle",
+          "status": 200
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Clear done is offered",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearDoneBtn",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the confirm modal",
+          "target": {
+            "by": "testid",
+            "name": "todos.clearDoneBtn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the confirm dialog opens",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "clearDone.dialog",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "network",
+          "intent": "go offline",
+          "network": "offline"
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "confirm while offline",
+          "target": {
+            "by": "testid",
+            "name": "clearDone.confirm"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "an error note is shown",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearErrNote",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our todo is still listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Fail {{run_id}}-ff"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Clear done is still offered",
+          "expected": {
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.clearDoneBtn",
+              "nth": 0
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "network",
+          "intent": "come back online",
+          "network": "online"
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "read back the server list",
+          "method": "GET",
+          "api_path": "/v1/todos?filter=all",
+          "status": 200,
+          "capture": {
+            "all_todos": "$"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "transform",
+          "intent": "count our todos on the server",
+          "from_capture": "all_todos",
+          "expr": "[.[] | select(.title | contains(\"{{run_id}}\"))] | length",
+          "capture": {
+            "kept": "$"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "the server still holds our todo",
+          "expected": {
+            "kind": "capture_equals",
+            "capture_name": "kept",
+            "value": "1"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up fid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{fid}}"
+        }
+      ]
+    }
+  ]
+}

@@ -30,6 +30,7 @@ Base path `/v1/todos`. Requests and responses are JSON.
 | PATCH  | `/v1/todos/:id`                               | Rename `{ "title": "..." }`                        | 200     |
 | POST   | `/v1/todos/:id/toggle`                        | Flip `done` on one todo                            | 200     |
 | DELETE | `/v1/todos/:id`                               | Delete one todo                                    | 204, no body |
+| DELETE | `/v1/todos`                                   | Clear all done todos; returns `{ "removed": n }`    | 200     |
 
 A todo looks like:
 

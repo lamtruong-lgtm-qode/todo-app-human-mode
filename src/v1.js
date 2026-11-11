@@ -36,6 +36,7 @@ function createV1Handler(store, { sendJson, readBody }) {
           if (!title) return sendJson(res, 400, { error: `Title must be 1-${MAX_TITLE} characters` });
           return sendJson(res, 201, toV1(store.create(title)));
         }
+        if (req.method === 'DELETE') return sendJson(res, 200, { removed: store.clearCompleted() });
         return sendJson(res, 405, { error: 'Method not allowed' });
       }
 

@@ -14,6 +14,8 @@ const addSpin = document.querySelector('[data-testid="todos.addSpin"]');
 const addError = document.getElementById('add-error');
 const toggleError = document.getElementById('toggle-error');
 const delError = document.getElementById('del-error');
+const clearDoneBtn = document.getElementById('clear-done-btn');
+const clearError = document.getElementById('clear-error');
 const toasts = document.getElementById('toasts');
 const modalRoot = document.getElementById('modal-root');
 
@@ -157,6 +159,7 @@ async function load() {
   if (!res.ok || !Array.isArray(res.data)) {
     for (const card of CARDS) renderState(card, 'error');
     statValue.textContent = '0';
+    clearDoneBtn.hidden = true;
     return;
   }
   const todos = res.data;
@@ -165,6 +168,7 @@ async function load() {
   renderState(CARDS[0], active.length === 0 ? 'empty' : 'none');
   renderState(CARDS[1], done.length === 0 ? 'empty' : 'none');
   statValue.textContent = String(todos.length);
+  clearDoneBtn.hidden = done.length === 0;
   for (const todo of active) listEl.appendChild(renderRow(todo));
   for (const todo of done) doneListEl.appendChild(renderRow(todo));
 }
@@ -357,5 +361,32 @@ function openDeleteModal(todo, opener) {
   });
   openModal({ prefix: 'confirmDelete', titleText: 'Delete this todo?', body, buttons: [cancel, confirm], opener, todoId: todo.id, initialFocus: cancel });
 }
+
+function openClearDoneModal(opener) {
+  const body = el('div', { class: 'modal-body' },
+    el('p', { testid: 'clearDone.body', text: 'All done todos will be removed. This cannot be undone.' }));
+  const cancel = el('button', { type: 'button', testid: 'clearDone.cancel', text: 'Keep them' });
+  const confirm = el('button', { type: 'button', testid: 'clearDone.confirm', class: 'danger', text: 'Clear done' });
+  cancel.addEventListener('click', closeModal);
+  confirm.addEventListener('click', async () => {
+    confirm.disabled = true;
+    clearError.hidden = true;
+    const res = await api(API, { method: 'DELETE' });
+    closeModal();
+    if (!res.ok || !res.data || typeof res.data.removed !== 'number') {
+      clearError.hidden = false;
+      return;
+    }
+    const n = res.data.removed;
+    toast(`Cleared ${n} todos`);
+    load();
+  });
+  openModal({ prefix: 'clearDone', titleText: 'Clear done todos?', body, buttons: [cancel, confirm], opener, initialFocus: cancel });
+}
+
+clearDoneBtn.addEventListener('click', () => {
+  clearError.hidden = true;
+  openClearDoneModal(clearDoneBtn);
+});
 
 load();

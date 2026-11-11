@@ -129,3 +129,24 @@ test('/api/todos stays in sync with /v1', async () => {
     assert.strictEqual(typeof list[0].id, 'number');
   });
 });
+
+test('v1 DELETE /v1/todos clears only done todos and returns the count', async () => {
+  await withServer(async (call) => {
+    const a = await (await call('POST', '/v1/todos', { title: 'A' })).json();
+    const b = await (await call('POST', '/v1/todos', { title: 'B' })).json();
+    await call('POST', '/v1/todos', { title: 'C' });
+    await call('POST', `/v1/todos/${a.id}/toggle`);
+    await call('POST', `/v1/todos/${b.id}/toggle`);
+
+    let res = await call('DELETE', '/v1/todos');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(await res.json(), { removed: 2 });
+
+    const list = await (await call('GET', '/v1/todos')).json();
+    assert.deepStrictEqual(list.map((t) => t.title), ['C']);
+
+    res = await call('DELETE', '/v1/todos');
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(await res.json(), { removed: 0 });
+  });
+});

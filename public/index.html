@@ -51,9 +51,13 @@
         </section>
 
         <section class="card" data-testid="todos.doneCard" aria-labelledby="done-heading">
-          <h2 id="done-heading">Done</h2>
+          <div class="card-head">
+            <h2 id="done-heading">Done</h2>
+            <button type="button" id="clear-done-btn" data-testid="todos.clearDoneBtn" aria-label="Clear done todos" hidden>Clear done</button>
+          </div>
           <div id="done-state"></div>
           <ul class="todo-list" id="done-list" data-testid="todos.doneList"></ul>
+          <p class="field-error" id="clear-error" data-testid="todos.clearErrNote" role="alert" hidden>Could not clear done todos. Try again.</p>
         </section>
       </div>
     </div>
