@@ -13,13 +13,13 @@ body {
   align-items: center;
   gap: 12px;
   padding: 0 20px;
-  background: #18181b;
+  background: #ea580c;
   color: #fff;
 }
 .brand { font-weight: 700; font-size: 18px; }
 .spacer { flex: 1; }
-kbd { padding: 2px 8px; border: 1px solid #52525b; border-radius: 6px; font-size: 12px; color: #d4d4d8; }
-.avatar { padding: 4px 12px; border-radius: 999px; background: #3f3f46; font-size: 13px; }
+kbd { padding: 2px 8px; border: 1px solid #fed7aa; border-radius: 6px; font-size: 12px; color: #fed7aa; }
+.avatar { padding: 4px 12px; border-radius: 999px; background: #c2410c; font-size: 13px; }
 .grid { display: flex; flex-direction: column; gap: 16px; padding: 24px; max-width: 1100px; margin: 0 auto; }
 .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 .row > .card { flex: 1 1 320px; min-width: 0; margin: 0; }
@@ -36,8 +36,8 @@ input[aria-invalid="true"] { border-color: #ef4444; }
 button { padding: 8px 12px; border: 1px solid #d4d4d8; background: #fff; border-radius: 8px; cursor: pointer; font: inherit; }
 button:hover:not(:disabled) { background: #f4f4f5; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
-button.primary { background: #18181b; color: #fff; border-color: #18181b; }
-button.primary:hover:not(:disabled) { background: #3f3f46; }
+button.primary { background: #ea580c; color: #fff; border-color: #ea580c; }
+button.primary:hover:not(:disabled) { background: #c2410c; }
 button.danger { background: #dc2626; color: #fff; border-color: #dc2626; }
 button.danger:hover:not(:disabled) { background: #b91c1c; }
 .field-error { margin: 8px 0 0; color: #b91c1c; font-size: 14px; }
@@ -59,7 +59,7 @@ button.danger:hover:not(:disabled) { background: #b91c1c; }
 .skeleton { display: flex; flex-direction: column; gap: 10px; padding-bottom: 8px; }
 .skel-row { height: 36px; border-radius: 8px; background: linear-gradient(90deg, #f4f4f5, #e4e4e7, #f4f4f5); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-.spin { width: 18px; height: 18px; border: 2px solid #d4d4d8; border-top-color: #18181b; border-radius: 50%; animation: spin 0.7s linear infinite; }
+.spin { width: 18px; height: 18px; border: 2px solid #d4d4d8; border-top-color: #ea580c; border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .backdrop { position: fixed; inset: 0; background: rgba(24, 24, 27, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .modal { width: min(440px, calc(100vw - 32px)); background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25); }
@@ -68,4 +68,4 @@ button.danger:hover:not(:disabled) { background: #b91c1c; }
 .modal-body .field-error { margin-top: 8px; }
 .modal-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 16px; }
 .toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 100; }
-.toast { background: #18181b; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
+.toast { background: #c2410c; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; }
