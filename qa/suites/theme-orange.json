@@ -1,0 +1,245 @@
+{
+  "_about": "TAH-19 orange theme appearance: computed-color style_match checks on the header, Add button, Delete confirm (stays red) and Done badge (stays green). Seeds and teardown use /v1/todos with run-tagged titles; no whole-list counts. The header is asserted as #ea580c (white on #f97316 lacks contrast). The spinner accent is only visible while busy and is not reliably drivable, so it is not covered. Assumes serial runs and the Done list showing our row first (nth 0).",
+  "schema_version": "1.0.0",
+  "run_id": "theme-orange",
+  "config": {
+    "base_url": "http://localhost:3000",
+    "parallelism": 1,
+    "video": "fail",
+    "default_timeout_ms": 15000
+  },
+  "namespace": {
+    "run_id": "theme-orange",
+    "email": "qa+theme-orange@example.com",
+    "tag": "QA RUN theme-orange"
+  },
+  "scenarios": [
+    {
+      "name": "Orange theme: header band is orange with white text",
+      "tags": [
+        "theme",
+        "style"
+      ],
+      "setup": [],
+      "teardown": [],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.top computed colors",
+          "expected": {
+            "kind": "style_match",
+            "target": {
+              "by": "testid",
+              "name": "todos.top",
+              "nth": 0
+            },
+            "styles": {
+              "background-color": "#ea580c",
+              "color": "rgb(255, 255, 255)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orange theme: Add button is deep orange with white text",
+      "tags": [
+        "theme",
+        "style"
+      ],
+      "setup": [],
+      "teardown": [],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "todos.addBtn computed colors",
+          "expected": {
+            "kind": "style_match",
+            "target": {
+              "by": "testid",
+              "name": "todos.addBtn"
+            },
+            "styles": {
+              "background-color": "#ea580c",
+              "color": "rgb(255, 255, 255)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orange theme: Delete confirm button stays red",
+      "tags": [
+        "theme",
+        "style"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Theme {{run_id}}-del'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Theme {{run_id}}-del"
+          },
+          "capture": {
+            "tid": "$.id"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up tid",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{tid}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "open the row menu",
+          "target": {
+            "by": "testid",
+            "name": "todos.rowActs",
+            "nth": -1
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "choose Delete",
+          "target": {
+            "by": "text",
+            "name": "Delete",
+            "exact": true
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "confirm button is red with white text",
+          "expected": {
+            "kind": "style_match",
+            "target": {
+              "by": "testid",
+              "name": "confirmDelete.confirm"
+            },
+            "styles": {
+              "background-color": "#dc2626",
+              "color": "rgb(255, 255, 255)"
+            }
+          }
+        },
+        {
+          "kind": "action",
+          "op": "click",
+          "intent": "Keep it",
+          "target": {
+            "by": "testid",
+            "name": "confirmDelete.cancel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orange theme: Done badge stays green",
+      "tags": [
+        "theme",
+        "style"
+      ],
+      "setup": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "seed 'Theme {{run_id}}-dn'",
+          "method": "POST",
+          "api_path": "/v1/todos",
+          "status": 201,
+          "body": {
+            "title": "Theme {{run_id}}-dn"
+          },
+          "capture": {
+            "did": "$.id"
+          }
+        },
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "mark it Done",
+          "method": "POST",
+          "api_path": "/v1/todos/{{did}}/toggle",
+          "status": 200
+        }
+      ],
+      "teardown": [
+        {
+          "kind": "action",
+          "op": "api",
+          "intent": "clean up did",
+          "method": "DELETE",
+          "api_path": "/v1/todos/{{did}}",
+          "status": 204
+        }
+      ],
+      "steps": [
+        {
+          "kind": "action",
+          "op": "navigate",
+          "intent": "open the todos screen",
+          "url": "/"
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "our row is listed",
+          "expected": {
+            "kind": "text_present",
+            "text": "Theme {{run_id}}-dn"
+          }
+        },
+        {
+          "kind": "assert",
+          "op": "assert",
+          "intent": "Done badge text is green, not orange",
+          "expected": {
+            "kind": "style_match",
+            "target": {
+              "by": "testid",
+              "name": "todos.doneBadge",
+              "nth": 0
+            },
+            "styles": {
+              "color": "#15803d"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
