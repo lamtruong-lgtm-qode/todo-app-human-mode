@@ -3,7 +3,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const MAX_TITLE = 200;
 const FILTERS = ['all', 'active', 'completed'];
+
+// The one title rule: trimmed, 1..MAX_TITLE characters. Returns null when invalid.
+function normalizeTitle(value) {
+  if (typeof value !== 'string') return null;
+  const title = value.trim();
+  return title.length >= 1 && title.length <= MAX_TITLE ? title : null;
+}
+
+function checkTitle(value) {
+  const title = normalizeTitle(value);
+  if (title) return title;
+  if (typeof value === 'string' && value.trim() !== '') {
+    throw new Error(`Title must be at most ${MAX_TITLE} characters`);
+  }
+  throw new Error('Title is required');
+}
 
 class TodoStore {
   constructor({ file } = {}) {
@@ -47,12 +64,10 @@ class TodoStore {
   }
 
   create(title) {
-    if (typeof title !== 'string' || title.trim() === '') {
-      throw new Error('Title is required');
-    }
+    const clean = checkTitle(title);
     const todo = {
       id: this.nextId++,
-      title: title.trim(),
+      title: clean,
       completed: false,
       createdAt: new Date().toISOString(),
     };
@@ -68,10 +83,7 @@ class TodoStore {
       throw new Error('Completed must be a boolean');
     }
     if (changes.title !== undefined) {
-      if (typeof changes.title !== 'string' || changes.title.trim() === '') {
-        throw new Error('Title is required');
-      }
-      todo.title = changes.title.trim();
+      todo.title = checkTitle(changes.title);
     }
     if (changes.completed !== undefined) {
       todo.completed = changes.completed;
@@ -96,4 +108,4 @@ class TodoStore {
   }
 }
 
-module.exports = { TodoStore };
+module.exports = { TodoStore, MAX_TITLE, normalizeTitle };

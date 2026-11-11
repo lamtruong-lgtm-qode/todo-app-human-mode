@@ -104,3 +104,15 @@ test('missing or corrupt file starts empty', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('title boundary: 200 accepted, 201 rejected on create and update', () => {
+  const store = new TodoStore();
+  assert.strictEqual(store.create('x'.repeat(200)).title.length, 200);
+  assert.throws(() => store.create('x'.repeat(201)), /at most 200/);
+  assert.strictEqual(store.create(`  ${'y'.repeat(200)}  `).title.length, 200);
+  const { id } = store.create('Task');
+  assert.throws(() => store.update(id, { title: 'x'.repeat(201) }), /at most 200/);
+  assert.throws(() => store.update(id, { title: '   ' }), /Title is required/);
+  assert.strictEqual(store.update(id, { title: 'x'.repeat(200) }).title.length, 200);
+  assert.strictEqual(store.get(id).title.length, 200);
+});

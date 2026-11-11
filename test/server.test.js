@@ -157,3 +157,20 @@ test('static serving blocks path traversal', async () => {
     assert.strictEqual(ok.status, 200);
   });
 });
+
+test('legacy API enforces the 200-character title cap on create and update', async () => {
+  await withServer(async (base) => {
+    const send = (method, path, title) =>
+      fetch(`${base}${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+    assert.strictEqual((await send('POST', '/api/todos', 'x'.repeat(201))).status, 400);
+    const ok = await send('POST', '/api/todos', 'x'.repeat(200));
+    assert.strictEqual(ok.status, 201);
+    const { id } = await ok.json();
+    assert.strictEqual((await send('PATCH', `/api/todos/${id}`, 'x'.repeat(201))).status, 400);
+    assert.strictEqual((await send('PATCH', `/api/todos/${id}`, 'z'.repeat(200))).status, 200);
+  });
+});

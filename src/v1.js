@@ -1,16 +1,11 @@
 'use strict';
 
-const MAX_TITLE = 200;
+const { MAX_TITLE, normalizeTitle } = require('./todoStore');
+
 const FILTERS = ['all', 'active', 'completed'];
 
 function toV1(todo) {
   return { id: String(todo.id), title: todo.title, done: todo.completed, createdAt: todo.createdAt };
-}
-
-function validTitle(value) {
-  if (typeof value !== 'string') return null;
-  const title = value.trim();
-  return title.length >= 1 && title.length <= MAX_TITLE ? title : null;
 }
 
 // The handler resolves to true once it has answered a request under /v1/todos
@@ -37,7 +32,7 @@ function createV1Handler(store, { sendJson, readBody }) {
         }
         if (req.method === 'POST') {
           const body = await readBody(req);
-          const title = validTitle(body && body.title);
+          const title = normalizeTitle(body && body.title);
           if (!title) return sendJson(res, 400, { error: `Title must be 1-${MAX_TITLE} characters` });
           return sendJson(res, 201, toV1(store.create(title)));
         }
@@ -53,7 +48,7 @@ function createV1Handler(store, { sendJson, readBody }) {
       if (req.method === 'PATCH') {
         const body = await readBody(req);
         if (!existing) return notFound();
-        const title = validTitle(body && body.title);
+        const title = normalizeTitle(body && body.title);
         if (!title) return sendJson(res, 400, { error: `Title must be 1-${MAX_TITLE} characters` });
         return sendJson(res, 200, toV1(store.update(id, { title })));
       }
