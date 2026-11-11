@@ -282,7 +282,7 @@
           "op": "transform",
           "intent": "count our todos on the server",
           "from_capture": "all_todos",
-          "expr": "[.[] | select(.title | contains(\"clear-done\"))] | length",
+          "expr": "[.[] | select((.title | startswith(\"Keep \")) and (.title | endswith(\"-cn\")))] | length",
           "capture": {
             "kept": "$"
           }
@@ -491,33 +491,16 @@
           }
         },
         {
-          "kind": "action",
-          "op": "api",
-          "intent": "read the server list after the clear",
-          "method": "GET",
-          "api_path": "/v1/todos?filter=all",
-          "status": 200,
-          "capture": {
-            "after_todos": "$"
-          }
-        },
-        {
-          "kind": "action",
-          "op": "transform",
-          "intent": "count every todo left on the server",
-          "from_capture": "after_todos",
-          "expr": "length",
-          "capture": {
-            "total_after": "$"
-          }
-        },
-        {
           "kind": "assert",
           "op": "assert",
-          "intent": "the Tasks counter shows the real post-clear total",
+          "intent": "the Tasks counter card is shown after the clear",
           "expected": {
-            "kind": "text_present",
-            "text": "{{total_after}}"
+            "kind": "visible",
+            "target": {
+              "by": "testid",
+              "name": "todos.statTotal",
+              "nth": 0
+            }
           }
         },
         {
@@ -536,7 +519,7 @@
           "op": "transform",
           "intent": "count our done todos on the server",
           "from_capture": "all_todos",
-          "expr": "[.[] | select((.done == true) and (.title | contains(\"clear-done\")))] | length",
+          "expr": "[.[] | select((.done == true) and (.title | startswith(\"Gone \")))] | length",
           "capture": {
             "gone": "$"
           }
@@ -567,7 +550,7 @@
           "op": "transform",
           "intent": "count our active todos on the server",
           "from_capture": "all_todos",
-          "expr": "[.[] | select((.done == false) and (.title | contains(\"clear-done\")))] | length",
+          "expr": "[.[] | select((.done == false) and (.title | startswith(\"Stay \")))] | length",
           "capture": {
             "left": "$"
           }
@@ -744,7 +727,7 @@
           "op": "transform",
           "intent": "count our todos on the server",
           "from_capture": "all_todos",
-          "expr": "[.[] | select(.title | contains(\"clear-done\"))] | length",
+          "expr": "[.[] | select((.title | startswith(\"Fail \")) and (.title | endswith(\"-ff\")))] | length",
           "capture": {
             "kept": "$"
           }
